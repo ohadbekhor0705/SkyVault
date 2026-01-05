@@ -1,12 +1,13 @@
 from app import create_app
 
-PORT = 8843
+
 
 def run():
+    PORT = 443
     app = create_app()
-    app.run("127.0.0.1",PORT)
+    app.run("127.0.0.1",PORT, ssl_context='adhoc')
 
 
 if __name__ == "__main__":
     app = create_app()
-    app.run("0.0.0.0",PORT,debug=True,ssl_context='adhoc')
+    app.run("0.0.0.0",80,debug=True)

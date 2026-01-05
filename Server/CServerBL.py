@@ -9,14 +9,12 @@ from protocol import *  # Import protocol definitions
 import bcrypt  # Import bcrypt for password hashing
 from models import User,File,SessionLocal # Import db for Database operations
 import struct
-import multiprocessing
-import hashlib
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization
 from cryptography import fernet
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
-    
+from run import run    
 
 
 
@@ -29,7 +27,7 @@ class CServerBL():
         self.clientHandlers: List[CClientHandler] = []  # List of client handler threads
         self.event = threading.Event()  # Event flag for server loop
         self.main_thread: threading.Thread | None = None  # Main server thread
-        self.web_server: multiprocessing.Process | None
+        self.web_server: threading.Thread = threading.Thread(target=run, daemon=True)
         storage_folder_name = "./StorageFiles"  # Folder for storage
         if not os.path.exists(storage_folder_name):  # Create folder if not exists
             os.mkdir(storage_folder_name)
@@ -56,6 +54,7 @@ class CServerBL():
         #self.web_server.start()
         try:
             self.event.set()  # Set event flag
+            self.web_server.start()
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create socket
             self.server_socket.bind((self._ip, self._port))  # Bind socket to IP and port
             self.server_socket.listen(5)  # Listen for connections
@@ -216,12 +215,12 @@ class CClientHandler(threading.Thread):
         header = self.client.recv(4)
         message_length: int = struct.unpack("!I",header)[0]
         encrypted  =self.client.recv(message_length)
-        return self.f.decrypt(encrypted).decode() # the error is here
+        return self.f.decrypt(encrypted).decode()
     
     def send_message(self, data: dict[str,Any]):
         encrypted_data = self.f.encrypt(json.dumps(data).encode())
         header = struct.pack(FORMAT,len(encrypted_data)) # calculating header
-        self.client.send(header + encrypted_data) # sending header with encrypted data
+        self.client.sendall(header + encrypted_data) # sending header with encrypted data
     
     def disconnect(self) -> None:
         self.write_to_log(f"[SERVER-BL] {self} disconnected")

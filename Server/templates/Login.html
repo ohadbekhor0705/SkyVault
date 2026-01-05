@@ -20,27 +20,28 @@
         <label for="password" class="form-label">Password</label>
         <input type="password" class="form-control" id="password" name="password" >
     </div>
-    <button type="submit" class="btn btn-info" id="submit">Register</button >
+    <button type="submit" class="btn btn-info" id="submit">Login</button >
 </form>
 
 
 
 
 <script>
-
-// code from https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
 document.addEventListener("DOMContentLoaded", function () {
-    const response_box = document.getElementBy("response");
+    const response_box = document.getElementById("response");
     const form = document.getElementById("form");
-    const submit_button = getElementById("submit")
+    
+    const submit_button = document.getElementById("submit");
+
     if (form) {
         form.addEventListener("submit", async function (e) {
             e.preventDefault();
 
-            // 1. Correctly initialize FormData
+            // Disable button to prevent double-submission
+            submit_button.disabled = true;
+            submit_button.innerText = "Logging in...";
+
             const formData = new FormData(e.target);
-            
-            // 2. Convert FormData to a plain JavaScript object for JSON serialization
             const data = Object.fromEntries(formData.entries());
 
             try {
@@ -49,23 +50,29 @@ document.addEventListener("DOMContentLoaded", function () {
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    // 4. Stringify the object to send as JSON
                     body: JSON.stringify(data)
                 });
 
                 if (response.ok) {
+                    // Redirect on success
                     window.location.href = "{{ url_for('Browse') }}";
-                } else if (response.status === 401) {
-                    const response_json = await response.json();
-                    
-                    response_box.innerText = response_json.message;
-                    response_box.className = "alert alert-danger";
                 } else {
-                    // Handle other errors
-                    console.error('Unexpected status:', response.status);
+                    // Handle errors (401 Unauthorized, etc.)
+                    const response_json = await response.json();
+                    response_box.innerText = response_json.message || "An error occurred.";
+                    response_box.className = "alert alert-danger";
+                    
+                    // Re-enable button so user can try again
+                    submit_button.disabled = false;
+                    submit_button.innerText = "Login";
                 }
             } catch (error) {
                 console.error("Fetch error:", error);
+                response_box.innerText = "Could not connect to the server.";
+                response_box.className = "alert alert-warning";
+                
+                submit_button.disabled = false;
+                submit_button.innerText = "Login";
             }
         });
     }
@@ -73,8 +80,7 @@ document.addEventListener("DOMContentLoaded", function () {
 </script>
 
 
-
-<p>If you don't have an account, you can <a href="{{ url_for('Register') }}">register here</a>.</p>
+// code from https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch
 
 
 {% else %}

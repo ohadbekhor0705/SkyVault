@@ -24,8 +24,10 @@ def register_routes(app):
     @app.route("/handle_login", methods=["POST"])
     def HandleLogin() -> tuple[Literal[''], Literal[200]] | tuple[Literal[''], Literal[401]]:
         payload = request.get_json()
+        print(payload)
         if _user :=getUser(payload):
-            login_user(_user)
+            print(_user.toDict())
+            print(login_user(_user))
             return "", 200
         else:
             return jsonify({"message": "Invalid Password or Username!"}), 401
@@ -43,9 +45,7 @@ def register_routes(app):
             files = db.query(File)\
             .filter(User.user_id == current_user.user_id).all()
         return render_template("Browse.html",files=files)
-
-
-
+    
     @app.route("/file_viewer/<file_id>")
     def file_viewer(file_id: str) -> str:
         db: Session = SessionLocal()

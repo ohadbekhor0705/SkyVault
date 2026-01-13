@@ -4,13 +4,13 @@ from typing import Dict, Tuple, Any, overload
 from sqlalchemy import (
 create_engine, Column, Integer, String, Boolean, ForeignKey, Text, BigInteger )
 from sqlalchemy.orm import declarative_base, sessionmaker, relationship, scoped_session
-
+from flask_login import UserMixin
 # -------------------------
 # Database setup
 # -------------------------
 Base = declarative_base()
 
-class User(Base):
+class User(Base, UserMixin):
     """
     ORM model for a user in the system.
     Attributes:
@@ -34,7 +34,9 @@ class User(Base):
     disabled: Column[bool] = Column(Boolean, default=False)
 
     files= relationship("File", back_populates="user", cascade="all, delete-orphan")
-
+    def get_id(self):
+        # Return the specific field used for your primary key as a string
+        return str(self.user_id)
     def __repr__(self):
         return f"<User id={self.user_id} username='{self.username}'>"
     def toDict(self):# -> dict[str, Any]:
@@ -46,7 +48,7 @@ class User(Base):
             "tries":self.tries
         }
 
-class File(Base):
+class File(Base, UserMixin):
     """
     ORM model for a file uploaded by a user.
 
@@ -64,7 +66,6 @@ class File(Base):
     filename: Column[str] = Column(String(255), nullable=False)
     filesize: Column[int] = Column(Integer, nullable=False)
     modified: Column[int] = Column(Integer, nullable=False)
-    chunks: Column[int] = Column(Integer, nullable=False)
     user_id: Column[int] = Column(Integer, ForeignKey("users.user_id"))
 
     user = relationship("User", back_populates="files")

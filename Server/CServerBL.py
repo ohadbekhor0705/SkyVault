@@ -9,7 +9,6 @@ from protocol import *  # Import protocol definitions
 import bcrypt  # Import bcrypt for password hashing
 from models import User,File,SessionLocal # Import db for Database operations
 import struct
-import hashlib
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization
 from cryptography import fernet
@@ -216,12 +215,12 @@ class CClientHandler(threading.Thread):
         header = self.client.recv(4)
         message_length: int = struct.unpack("!I",header)[0]
         encrypted  =self.client.recv(message_length)
-        return self.f.decrypt(encrypted).decode() # the error is here
+        return self.f.decrypt(encrypted).decode()
     
     def send_message(self, data: dict[str,Any]):
         encrypted_data = self.f.encrypt(json.dumps(data).encode())
         header = struct.pack(FORMAT,len(encrypted_data)) # calculating header
-        self.client.send(header + encrypted_data) # sending header with encrypted data
+        self.client.sendall(header + encrypted_data) # sending header with encrypted data
     
     def disconnect(self) -> None:
         self.write_to_log(f"[SERVER-BL] {self} disconnected")

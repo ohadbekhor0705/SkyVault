@@ -4,23 +4,33 @@
 
 {% block content %}
 
-<h1>Browse Files</h1>
-<p>Here you can browse the files uploaded by You</p>
-
-<table class="table">
-    <thead>
-        <tr>
-            <th>file name</th>
-            <th>file size</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for file in in files %}
+    
+{% if files %}
+    <h1>Browse Files</h1>
+    <p>Here you can browse the files uploaded by You</p>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>file name</th>
+                <th>file size</th>
+                <th>modified</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for file in files %}
+            <tr>
                 <th>{{ file.filename }}</th>
-                <th>file.filesize</th>
-        {% endfor %}
-        
-    </tbody>
-</table>
+                <th>{{file.filesize}}</th>
+                <th>{{file.modified}}</th>
+            </tr>
+                    
+            {% endfor %}
+
+        </tbody>
+    </table>
+{% else %}
+    <h1>No files found.</h1>
+{% endif %}
+
 
 {% endblock %}

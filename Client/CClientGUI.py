@@ -2,12 +2,14 @@ import customtkinter as ctk
 from CClientBL import CClientBL
 from AuthPage import AuthFrame
 from HomePage import HomePage
-class App(ctk.CTk):
-    def __init__(self):
-        super().__init__()
 
+ctk.set_appearance_mode("dark")
+class App(ctk.CTk):
+    def __init__(self, client_bl: CClientBL):
+        super().__init__()
+        print("Initializing App")
         self.title("SkyVault")
-        self.client_bl = CClientBL()
+        self.client_bl = client_bl
         self.frames: dict[str, ctk.CTkFrame] = {}
         try:
             self.state("zoomed")
@@ -35,10 +37,16 @@ class App(ctk.CTk):
             frames=self.frames,
             client_bl = self.client_bl
         )
-
+        self.frames["Home"] = self.home        
+        self.frames["Auth"] = self.auth        
         for page in (self.home, self.auth):
             page.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self.home.tkraise()
-app = App()
-app.mainloop()
+
+if __name__ == "__main__": 
+    client_bl = CClientBL()
+    client_bl.process_handshake()
+    app = App(client_bl)
+   
+    app.mainloop()

@@ -54,15 +54,27 @@ class FileRow(ctk.CTkFrame):
             self.date_label,
             self.menu_button,
         )
-
+        # Dark Mode Colors (Matching CTK)
+        bg_color = "#2b2b2b"
+        fg_color = "#ffffff"
+        select_color = "#3d3d3d"  # Hover color
         self.id_label.grid(row=0, column=0, padx=8, pady=6, sticky="ew")
         self.name_label.grid(row=0, column=1, padx=8, pady=6, sticky="ew")
         self.size_label.grid(row=0, column=2, padx=8, pady=6, sticky="e")
         self.date_label.grid(row=0, column=3, padx=8, pady=6, sticky="ew")
         self.menu_button.grid(row=0, column=4, padx=6, pady=6)
-
+    
         # Context menu with emoji icons
-        self.menu = tk.Menu(self, tearoff=0)
+        self.menu = tk.Menu(
+            self,
+            tearoff=0,
+            bg=bg_color,
+            fg=fg_color,
+            activebackground=select_color,
+            activeforeground=fg_color,
+            bd=0,
+            font=ctk.CTkFont(size=20)
+        )
         self.menu.add_command(label="💾 Save file", command=self._handle_save)
         self.menu.add_command(label="🔗 Share file", command=self._handle_share)
         self.menu.add_separator()
@@ -98,12 +110,12 @@ class FileRow(ctk.CTkFrame):
 
     def _handle_delete(self):
         if self.on_delete:
-            self.on_delete(self.file_id)
+            self.on_delete()
 
     def _handle_save(self):
         if self.on_save:
-            self.on_save(self.file_id)
+            self.on_save()
 
     def _handle_share(self):
         if self.on_share:
-            self.on_share(self.file_id)
+            self.on_share()

@@ -18,8 +18,6 @@ def create_app() -> Flask:
 
     @login_manager.user_loader
     def load_user(uid: int) -> User | None:
-        return getUser(uid)
-    
-
-    
+        with SessionLocal() as db:
+            return db.query(User).filter(User.user_id == uid).first()
     return app

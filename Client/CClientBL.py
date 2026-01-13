@@ -1,20 +1,18 @@
-import io
-import platform
 import socket
 from typing import Tuple,BinaryIO
 import json
 import struct
 import os
 from typing import Any, overload
-from customtkinter import CTkProgressBar, CTkLabel
+from customtkinter import CTkScrollableFrame, CTkLabel
 from datetime import datetime
-from tkinter.ttk import Treeview
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography import fernet
 import base64
 import threading
-import subprocess
+from FileRow import FileRow
+from time import sleep
 CHUNK_SIZE = 1024 * 64
 FORMAT = "!I"
 class CClientBL():
@@ -33,10 +31,34 @@ class CClientBL():
         self.files: list[dict[str,Any]] = []
         self.username: str = ""
         self.work_event: threading.Event = threading.Event()
-     
+        self.operation_thread: threading.Thread | None = None
+    def process_handshake(self) -> None:
+        while True:
+            try:
+                _client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+                _client_socket.connect(self.ADDR)
+                self.conn = _client_socket
+                break
+            except ConnectionRefusedError:
+                _client_socket.close()
+                print("Trying Connecting to server...")
+            sleep(0.5)
+
+        # Receiving public key from server
+        key_len_recv = _client_socket.recv(4)
+        len_pem_public: int = struct.unpack(FORMAT,key_len_recv)[0]
+        pem_public = _client_socket.recv(len_pem_public)
+        self.public_key = server_public_key = serialization.load_pem_public_key(pem_public) # Loading public key
+        #Generate session key and send it encrypted
+        raw_session_key = os.urandom(32)
+        self.session_key = base64.urlsafe_b64encode(raw_session_key)
+        encrypted_session_key = server_public_key.encrypt(self.session_key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
+        _client_socket.send(struct.pack(FORMAT,len(encrypted_session_key)) + encrypted_session_key) #sending session key
+        self.fernet = fernet.Fernet(self.session_key)
+        
     def connect(self, username: str, password: str, cmd: str) -> dict[str, Any]:
         """
-        Establishes a connection to the server and sends authentication credentials.
+        sends authentication credentials.
         Args:
             username (str): Username for authentication
             password (str): Password for authentication 
@@ -55,21 +77,6 @@ class CClientBL():
         """
         global FORMAT
         try:
-            _client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-            _client_socket.connect(self.ADDR)
-            # Receiving public key from server
-            key_len_recv = _client_socket.recv(4)
-            len_pem_public: int = struct.unpack(FORMAT,key_len_recv)[0]
-
-            pem_public = _client_socket.recv(len_pem_public)
-            self.public_key = server_public_key = serialization.load_pem_public_key(pem_public) # Loading public key
-            #Generate session key and send it encrypted
-            raw_session_key = os.urandom(32)
-            self.session_key = base64.urlsafe_b64encode(raw_session_key)
-            encrypted_session_key = server_public_key.encrypt(self.session_key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
-            _client_socket.send(struct.pack(FORMAT,len(encrypted_session_key)) + encrypted_session_key) #sending session key
-
-            self.fernet = fernet.Fernet(self.session_key)
 
 
             auth = {
@@ -77,11 +84,12 @@ class CClientBL():
                     "password": password,
                     "cmd": cmd
             }
+            print(auth)
             encrypted_auth = self.fernet.encrypt(json.dumps(auth).encode())
-            _client_socket.send(struct.pack(FORMAT,len(encrypted_auth)) +  encrypted_auth)
+            self.conn.send(struct.pack(FORMAT,len(encrypted_auth)) +  encrypted_auth)
             # getting authentication response:
-            response_length: bytes = _client_socket.recv(4)
-            response_bytes_encrypted: bytes = _client_socket.recv(struct.unpack(FORMAT,response_length)[0])
+            response_length: bytes = self.conn.recv(4)
+            response_bytes_encrypted: bytes = self.conn.recv(struct.unpack(FORMAT,response_length)[0])
             response: dict[str, Any] = json.loads(self.fernet.decrypt(response_bytes_encrypted).decode())
             if response["status"] == True:
                 self.connection_event.set() # setting the flag to True.
@@ -90,29 +98,29 @@ class CClientBL():
                 self.username = auth["username"]
                 self.current_storage = response["user"]["curr_storage"] / (1024**2)
                 self.max_storage = response["user"]["max_storage"] / (1024**2)
-                self.conn = _client_socket
-            print(response)
+                self.conn = self.conn
             return response
-        except ConnectionRefusedError:
-            return {"status": False,"message": "The server isn't running. Please Try Again Later."}
+        except (ConnectionAbortedError, ConnectionError, ConnectionResetError):
+            return {"status": False,"message": "Server Internal Error"}
     
     
-    def sendfile(self,file: BinaryIO, command: str,**kwargs) -> None:
+    def sendfile(self,file: BinaryIO, **kwargs) -> None:
         self.work_event.set()
         global FORMAT
-        response_text: CTkLabel =  kwargs["response_text"]
-        files_table: Treeview = kwargs["table"]
+        header_field: CTkLabel =  kwargs["header_field"]
+        parent: CTkScrollableFrame = kwargs["parent"]
         file_size: int = os.path.getsize(file.name) # file size in bytes.
+
         # if user doesn't have storage then display appropriate message
         if file_size/(1024**2) + self.current_storage  > self.max_storage:
-            response_text.configure(text= "You dont't have enough storage to upload this file")
+            header_field.configure(text= "You dont't have enough storage to upload this file")
             return
         payload: dict[str, Any] = {
-            "cmd": command,
+            "cmd": "upload",
             "filename":  file.name.split("/")[-1],
             "filesize": file_size,
         }
-        self.send_message(payload)
+        self.send_message(payload) # sending a data into 
 
         while chunk := file.read(CHUNK_SIZE):
             encrypted_chunk = self.fernet.encrypt(chunk)
@@ -126,13 +134,23 @@ class CClientBL():
         if response["status"]:
             self.files.append({"file_id": response["file_id"] ,"filename": payload["filename"], "filesize": file_size / (1024**2)})
             self.current_storage += file_size / (1024**2)
-            dateTime: datetime = datetime.now().strftime("%Y-%m-%d")
-            files_table.insert("","end", values= (response["file_id"],file.name.split("/")[-1], str(round(file_size,2))+" bytes",dateTime))
-            response_text.configure(text=f"{response["message"]}")
+            header_field.configure(text=response["message"])
+            row = parent.grid_size()[1]  # next empty row
+            file_row = FileRow(
+                parent, response["file_id"],
+                file.name.split("/")[-1],
+                file_size,
+                datetime.now().strftime("%Y-%m-%d"),
+                lambda: threading.Thread(self.delete_files([response['file_id']],header_field=header_field)),
+                None,
+                None
+            )
+            file_row.grid(row =row,column=0 , sticky="nsew", padx=5, pady=2) 
+            
     
-    def delete_files(self,file_ids: list[str], files_table: Treeview, selected_rows: tuple[str,...], **kwargs) -> None:
+    def delete_files(self,file_ids: list[str], **kwargs) -> None:
         self.work_event.set()
-        response_text = kwargs["response_text"]
+        header = kwargs["header_field"]
 
         payload = {
             "cmd": "delete",
@@ -141,10 +159,7 @@ class CClientBL():
         self.send_message(payload)
         response = self.get_message()
         self.work_event.clear()
-        response_text.configure(text=response["message"])
-        updated: int = 0
-        if response["status"]:
-            files_table.delete(*selected_rows)
+        header.configure(text=response["message"])
 
     def ReceiveFile(self, file_id:str, filename:str):
         ...

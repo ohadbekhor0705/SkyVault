@@ -2,6 +2,7 @@ import customtkinter as ctk
 from typing import Callable, Optional
 from CClientBL import CClientBL
 import threading
+from MainPage import MainFrame
 class AuthFrame(ctk.CTkFrame):
     def __init__(
         self,
@@ -14,7 +15,7 @@ class AuthFrame(ctk.CTkFrame):
         **kwargs
     ):
         super().__init__(master, **kwargs)
-
+        self.main_container = master
         self.on_login = on_login
         self.on_register = on_register
         self.on_back_home = on_back_home
@@ -27,7 +28,7 @@ class AuthFrame(ctk.CTkFrame):
         self.grid_columnconfigure(0, weight=1)
 
         # Center panel
-        self.panel = ctk.CTkFrame(self, corner_radius=20, fg_color="gray20")
+        self.panel = ctk.CTkFrame(self, corner_radius=20)
         self.panel.grid(row=0, column=0, sticky="nsew", padx=400, pady=100)
 
         # Increased row count to (0-6) to accommodate the message label
@@ -122,7 +123,14 @@ class AuthFrame(ctk.CTkFrame):
         if response["status"]:
             # Success
             self.message_label.configure(text="Success!", text_color="lightgreen")
-            self.frames["Main"].tkraise()
+            main = MainFrame(
+                self.main_container,
+                self.frames,
+                self.client_bl
+            )
+            self.frames["Main"] = main
+            main.place(relx=0, rely=0, relwidth=1, relheight=1)
+            main.tkraise()
         else:
             # Failure - Display the message returned from the BL
             error_msg = response["message"]

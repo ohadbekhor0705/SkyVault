@@ -12,10 +12,15 @@ from uuid6 import uuid7
 from models import File, User
 import os
 from dotenv import load_dotenv
+from Crypto.Cipher import AES
 FORMAT = "!I"
 CHUNK_SIZE = 1024 *64  # 64 KB
 
 
+def load_key(key_filename="file_key.bin") -> bytes:
+    """Loads the AES key from a file."""
+    with open(key_filename, "rb") as key_file:
+        return key_file.read()
 
 def username_exists(username: str, db: Session | None = None) -> bool: 
     if db is None:
@@ -23,9 +28,11 @@ def username_exists(username: str, db: Session | None = None) -> bool:
     result: bool = db.query(User).filter(User.username == username).first() is not None
     return result
 @overload
-def getUser(login: int) -> User | None: ...
+def getUser(login: int) -> User | None:
+    ...
 @overload
-def getUser(login: Dict[str,Any]) -> User | None: ...
+def getUser(login: Dict[str,Any]) -> User | None: 
+    ...
 
 def getUser(login: dict | int) -> 'User | None':
     """
@@ -43,15 +50,18 @@ def getUser(login: dict | int) -> 'User | None':
     user: 'User | None' = None
 
     with SessionLocal() as db:
+     
         # Fetch user
         if isinstance(login, int):
             user = db.query(User).filter(User.user_id == login).first()
         elif isinstance(login, dict):
             user = db.query(User).filter(
                 and_(User.username == login["username"], User.disabled == False)
-            ).first()
+            ).first() 
+            
         if not user:
             return  None
+        db.refresh(user)
         # Handle login password
         if isinstance(login, dict):
             password_correct: bool = bcrypt.checkpw(
@@ -62,6 +72,8 @@ def getUser(login: dict | int) -> 'User | None':
                 if user.tries >= 3:
                     user.disabled = True
                 db.commit()  # commit changes while session is active
+                db.close()
+                return None
         # create a new User object that is NOT bound to the session
         detached_user = User(
             user_id=user.user_id,
@@ -75,8 +87,6 @@ def getUser(login: dict | int) -> 'User | None':
         return detached_user  # safe to use anywhere           
 
 
-    pass
-
 def InsertUser(user: Dict[str,Any]) -> Dict:
     """Insert a new user into the database.
 
@@ -87,6 +97,7 @@ def InsertUser(user: Dict[str,Any]) -> Dict:
         Dict: A dictionary with 'status' indicating success and 'response' message.
     """
     db: Session = SessionLocal()
+    db.refresh()
     try:
         if username_exists(user["username"],db):
           return {"status":False, "message": "This username is already taken"}
@@ -129,42 +140,40 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
     file_id = str(uuid7())
     file_size = payload["filesize"]
     HEADER_SIZE = struct.calcsize(FORMAT) # Ensure FORMAT matches (e.g., "!I")
-    received_unencrypted_bytes = 0
     
-    save_path = f"./StorageFiles/{file_id}"
+    save_path = f"./StorageFiles/{file_id}.encrypted"
     try:
         if not os.path.exists(save_path):
             os.mkdir(save_path)
-        while True:
-            #  Read the length of the ENCRYPTED chunk
-            header_bytes = recv_exact(client,HEADER_SIZE)
-            header = struct.unpack(FORMAT, header_bytes)[0]
-            print(f"header: {header}")
-            if header == 0: break  #  Check for EOF (The 0 at the end)
-            chunk = fernet.decrypt(recv_exact(client, header))
-            
-
-
+        with open(save_path,"ab") as f:
+            while True:
+                #  Read the length of the ENCRYPTED chunk
+                header_bytes = recv_exact(client,HEADER_SIZE)
+                header = struct.unpack(FORMAT, header_bytes)[0]
+                print(f"header: {header}")
+                if header == 0: break  #  Check for EOF (The 0 at the end)
+                original_chunk = fernet.decrypt(recv_exact(client, header))\
+                
+                
         print(f"file file received from: {ClientHandler}")
 
     
     except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError) as e:
-        print(e)
-        try: os.remove(f"./StorageFiles/{file_id}.encrypted")
+        try: os.remove(save_path)
         except FileNotFoundError: pass
         return None
 
     db = SessionLocal()
+    db.refresh()
     user_in_session: User = db.merge(ClientHandler.user)
     user_in_session.curr_storage += payload["filesize"]
     uploaded_file =  File(
-            file_id=file_id,
-            filename=payload["filename"],
-            filesize=file_size,
-            modified=int(datetime.now().timestamp()),
-            chunks=chunks,
-            user_id=ClientHandler.user.user_id
-        )
+        file_id=file_id,
+        filename=payload["filename"],
+        filesize=file_size,
+        modified=int(datetime.now().timestamp()),
+        user_id=ClientHandler.user.user_id
+    )
     db.add(uploaded_file)
     db.commit()
     db.close()
@@ -213,7 +222,7 @@ def DeleteFile(file_ids: list[str], ClientHandler)-> dict[str, Any]:
             .delete(synchronize_session=False)
             # attach user to the session
             user_in_session: User = db.merge(ClientHandler.user)
-            user_in_session.curr_storage = user_in_session.curr_storage - total_size
+            user_in_session.curr_storage - total_size
             db.commit()
         for file_id in file_ids:
             rmtree(f"./StorageFiles/{file_id}")
@@ -230,10 +239,6 @@ def createLink(file_id: str)-> dict[str, Any]:
     except:
         return {"status": False,"message": "Couldn't Create share link."}
 
-def get_file_names(directory: str) -> list[str]:
-    """Return a list of file names in the given directory (non-recursive)."""
-    with os.scandir(directory) as entries:
-        return [entry.name for entry in entries if entry.is_file()]
 
 def handle_client_request(payload: dict[str, Any],ClientHandler) -> dict[str, Any] | None:
     """Handling clients requests
@@ -261,10 +266,13 @@ def handle_client_request(payload: dict[str, Any],ClientHandler) -> dict[str, An
     return response
 
 def recv_exact(sock, size):
-    data = b""
+    
+    if size < 0:
+        raise ValueError("size must be non negative")
+    data = bytearray()
     while len(data) < size:
         packet = sock.recv(size - len(data))
         if not packet:
             raise ConnectionError("Socket closed unexpectedly")
-        data += packet
-    return data
+        data.extend(packet)
+    return bytes(data)

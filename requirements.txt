@@ -4,3 +4,4 @@ uuid
 bcrypt
 SQLAlchemy
 uuid6
+pyopenssl 

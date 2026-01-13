@@ -22,7 +22,6 @@ class HomePage(ctk.CTkFrame):
     ):
         super().__init__(master, **kwargs)
         self.frames = frames
-        self.frames["Home"] = self
 
         # Callback injected by the application controller
         self.on_authenticate = on_authenticate

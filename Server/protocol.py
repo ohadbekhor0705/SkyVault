@@ -11,7 +11,7 @@ from datetime import datetime
 from uuid6 import uuid7
 from models import File, User
 import os
-
+from dotenv import load_dotenv
 FORMAT = "!I"
 CHUNK_SIZE = 1024 *64  # 64 KB
 
@@ -131,7 +131,6 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
     HEADER_SIZE = struct.calcsize(FORMAT) # Ensure FORMAT matches (e.g., "!I")
     received_unencrypted_bytes = 0
     
-    chunks: int = 1 # how many chunks does the file have
     save_path = f"./StorageFiles/{file_id}"
     try:
         if not os.path.exists(save_path):
@@ -142,15 +141,16 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
             header = struct.unpack(FORMAT, header_bytes)[0]
             print(f"header: {header}")
             if header == 0: break  #  Check for EOF (The 0 at the end)
-            encrypted_chunk =  recv_exact(client, header) # Read the encrypted block
-            with open(f"{save_path}/{chunks}.bin", "ab") as f: f.write(encrypted_chunk) # Write the encrypted chunk
-            chunks += 1
+            chunk = fernet.decrypt(recv_exact(client, header))
+            
+
+
         print(f"file file received from: {ClientHandler}")
 
     
     except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError) as e:
         print(e)
-        try: os.remove(f"./StorageFiles/{file_id}/{chunks}.bin")
+        try: os.remove(f"./StorageFiles/{file_id}.encrypted")
         except FileNotFoundError: pass
         return None
 
@@ -184,15 +184,7 @@ def SendFile(file_id: str, ClientHandler) -> None:
     global CHUNK_SIZE
     client: socket.socket = ClientHandler.client
     try:
-        file_names = get_file_names(rf"C:Storagefiles/{file_id}")
-        for file_name in file_names:#Read encrypted chunk
-            with open(rf"./Storagefiles/{file_id}/{file_name}","rb") as f: chunk = f.read()
-            if not chunk:
-                client.sendall(struct.pack(FORMAT, 0))# No more data: Send the '0' signal to stop the receiver
-                break 
-            chunk_len = len(chunk)# Get the size of this specific chunk
-            header = struct.pack(FORMAT, chunk_len) # 4. Pack the length into 4 bytes
-            client.sendall(header + chunk) # Send [Length Header] + [The Actual Encrypted Bytes]
+        return None
 
     except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
         pass

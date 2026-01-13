@@ -21,7 +21,7 @@ class CClientBL():
     def __init__(self) -> None:
         self.ADDR = ("127.0.0.1", 9999)
         
-        self.client: socket.socket | None = None
+        self.conn: socket.socket | None = None
         self.user = {}
         self.connection_event = threading.Event()
         self.public_key: bytes
@@ -34,7 +34,7 @@ class CClientBL():
         self.username: str = ""
         self.work_event: threading.Event = threading.Event()
      
-    def connect(self, username: str, password: str, cmd: str) -> Tuple[dict[str,Any], socket.socket | None]:
+    def connect(self, username: str, password: str, cmd: str) -> dict[str, Any]:
         """
         Establishes a connection to the server and sends authentication credentials.
         Args:
@@ -42,9 +42,8 @@ class CClientBL():
             password (str): Password for authentication 
             cmd (str): Command to be sent to server
         Returns:
-            Tuple[str, socket.socket]: A tuple containing:
+            dict[str, Any]: A json containing:
                 - str: Response message from server
-                - socket.socket: Connected socket object if successful, None if connection fails
         Raises:
             Exception: Any network or connection related exceptions that may occur
         Description:
@@ -91,11 +90,11 @@ class CClientBL():
                 self.username = auth["username"]
                 self.current_storage = response["user"]["curr_storage"] / (1024**2)
                 self.max_storage = response["user"]["max_storage"] / (1024**2)
-                return response, _client_socket
-            else:
-                return response, None
+                self.conn = _client_socket
+            print(response)
+            return response
         except ConnectionRefusedError:
-            return {"message": "The server isn't running. Please Try Again Later."},None
+            return {"status": False,"message": "The server isn't running. Please Try Again Later."}
     
     
     def sendfile(self,file: BinaryIO, command: str,**kwargs) -> None:
@@ -118,9 +117,9 @@ class CClientBL():
         while chunk := file.read(CHUNK_SIZE):
             encrypted_chunk = self.fernet.encrypt(chunk)
             header = struct.pack(FORMAT, len(encrypted_chunk))
-            self.client.sendall(header + encrypted_chunk)
+            self.conn.sendall(header + encrypted_chunk)
         print("EOF")
-        self.client.sendall(struct.pack(FORMAT, 0))
+        self.conn.sendall(struct.pack(FORMAT, 0))
 
         response = self.get_message()
         self.work_event.clear()
@@ -148,29 +147,7 @@ class CClientBL():
             files_table.delete(*selected_rows)
 
     def ReceiveFile(self, file_id:str, filename:str):
-
-        self.work_event.set()
-        self.send_message({"cmd": "save","file_id": file_id,"filename":filename})
-        received = 0
-        HEADER_SIZE = struct.calcsize(FORMAT)
-        if not os.path.exists("./saved_files"):
-            os.mkdir("saved_files")
-        file_path = f"saved_files/{filename}"
-        with open(file_path,"wb") as saved_file:
-            while True:
-                chunk_len = self.recv_exact(HEADER_SIZE)
-                if chunk_len == 0: # if we got EOF then break:
-                    break
-                header = struct.unpack(FORMAT, chunk_len)[0] # get header
-                encrypted_chunk = self.recv_exact(header)
-                saved_file.write(self.fernet.decrypt(encrypted_chunk))
-        self.work_event.clear()
-        if os.path.exists(file_path): # opening the file, cross platform support.
-            system_name = platform.system()
-            match system_name:
-                case "Darwin": subprocess.run(["open", file_path]) # macOS
-                case "Windows": os.startfile(file_path) # Windows
-                case "Linux": subprocess.run(["xdg-open", file_path]) # Linux
+        ...
 
     @overload
     def send_message(self, payload: str): ...
@@ -186,11 +163,11 @@ class CClientBL():
         if isinstance(payload, str):
             encrypted = self.fernet.encrypt(payload.encode())
             Header = struct.pack(FORMAT,len(encrypted))
-            self.client.send(Header + encrypted)
+            self.conn.send(Header + encrypted)
         if isinstance(payload, dict):    
             encrypted = self.fernet.encrypt(json.dumps(payload).encode())
             Header = struct.pack(FORMAT,len(encrypted))
-            self.client.send(Header + encrypted)
+            self.conn.send(Header + encrypted)
 
     def get_message(self) -> dict[str, Any]:
         """Receiving response frm server
@@ -198,15 +175,15 @@ class CClientBL():
         Returns:
             dict[str, Any]: message from server.
         """ 
-        len_bytes: bytes = self.client.recv(4)
-        encrypted_payload = self.client.recv(struct.unpack(FORMAT,len_bytes)[0])
+        len_bytes: bytes = self.conn.recv(4)
+        encrypted_payload = self.conn.recv(struct.unpack(FORMAT,len_bytes)[0])
         
         return json.loads(self.fernet.decrypt(encrypted_payload).decode())
     
     def recv_exact(self, size: int) -> bytes:
         data = b""
         while len(data) < size:
-            packet = self.client.recv(size - len(data))
+            packet = self.conn.recv(size - len(data))
             if not packet:
                 raise ConnectionError("Socket closed unexpectedly")
             data += packet

@@ -9,14 +9,13 @@ from protocol import *  # Import protocol definitions
 import bcrypt  # Import bcrypt for password hashing
 from models import User,File,SessionLocal # Import db for Database operations
 import struct
-import multiprocessing
 import hashlib
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization
 from cryptography import fernet
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import hashes
-    
+from run import run    
 
 
 
@@ -29,7 +28,7 @@ class CServerBL():
         self.clientHandlers: List[CClientHandler] = []  # List of client handler threads
         self.event = threading.Event()  # Event flag for server loop
         self.main_thread: threading.Thread | None = None  # Main server thread
-        self.web_server: multiprocessing.Process | None
+        self.web_server: threading.Thread = threading.Thread(target=run, daemon=True)
         storage_folder_name = "./StorageFiles"  # Folder for storage
         if not os.path.exists(storage_folder_name):  # Create folder if not exists
             os.mkdir(storage_folder_name)
@@ -56,6 +55,7 @@ class CServerBL():
         #self.web_server.start()
         try:
             self.event.set()  # Set event flag
+            self.web_server.start()
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create socket
             self.server_socket.bind((self._ip, self._port))  # Bind socket to IP and port
             self.server_socket.listen(5)  # Listen for connections
@@ -68,14 +68,7 @@ class CServerBL():
 
                 encrypted_session_key_len_bytes = client.recv(4)
                 encrypted_session_key = client.recv(struct.unpack(FORMAT,encrypted_session_key_len_bytes)[0])
-                session_key = self.private_key.decrypt(
-                    encrypted_session_key,
-                    padding.OAEP(
-                        mgf=padding.MGF1(algorithm=hashes.SHA256()),  # mask generation function
-                        algorithm=hashes.SHA256(),                     # hash algorithm for OAEP itself
-                        label=None
-                    )
-                )
+                session_key = self.private_key.decrypt(encrypted_session_key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
 
                 f = fernet.Fernet(session_key)
                 self.write_to_log(client)
@@ -202,7 +195,6 @@ class CClientHandler(threading.Thread):
     def run(self) -> None:
         # Server functionality here
         self.write_to_log(f"[CClientBl] {threading.active_count() - 1} Are currently connected!")
-        iter = 1
         while True:
             try:
                 message: str | None = self.get_message()
@@ -245,3 +237,9 @@ if __name__ == "__main__":
         print("Press Ctrl + C to exit.")
         server = CServerBL()
         server.start_server()
+        try:
+            from time import sleep
+            while True:
+                sleep(1)
+        except KeyboardInterrupt:
+            server.stop_server()

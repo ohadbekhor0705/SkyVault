@@ -1,5 +1,6 @@
 import itertools
 from time import sleep
+from typing import Callable
 from CClientBL import CClientBL
 import customtkinter as ctk
 from FileRow import FileRow
@@ -22,6 +23,7 @@ class MainFrame(ctk.CTkScrollableFrame):
         self.grid_columnconfigure(0, weight=1)
         self.header = ctk.CTkLabel(
             self,
+            text="",
             font=ctk.CTkFont(size=20)
         )
         self.header.grid(row=0, column=0, sticky="nsew")
@@ -35,30 +37,19 @@ class MainFrame(ctk.CTkScrollableFrame):
 
         if client_bl:
             for i, f in enumerate(client_bl.files):
-                # Define a wrapper for delete to remove row from UI
-                def make_delete_callback(file_id: str, row: FileRow):
-                    def callback():
-                        # Call business logic
-                        client_bl.delete_files([file_id],header_field=self.header)
-                        # Remove row from UI
-                        row.destroy()
-                        # Optionally remove from list
-                        self.file_rows.remove(row)
-                    return lambda: threading.Thread(target=callback).start()
-
                 row = FileRow(
                     self,
                     f["file_id"],
                     f["filename"],
                     f["filesize"],
                     f["modified"],
-                    on_delete=make_delete_callback(f["file_id"], None),  # placeholder row, will fix below
-                    on_save=None,
+                    on_delete=self.make_delete_callback(f["file_id"], None),  # placeholder row, will fix below
+                    on_save=self.make_save_callback(f["file_id"], f["filename"]),
                     on_share=None
                 )
 
                 # Fix the row reference in the callback after row is created
-                row.on_delete = make_delete_callback(f["file_id"], row)
+                row.on_delete = self.make_delete_callback(f["file_id"], row)
 
                 row.grid(row=i+2, column=0, sticky="nsew", padx=5, pady=2)
                 self.file_rows.append(row)
@@ -72,14 +63,42 @@ class MainFrame(ctk.CTkScrollableFrame):
         filetypes=[("Text files", "*.txt"), ("All files", "*.*")]
         )
         if filename:
-
             f = open(filename,"rb")
             res_text = self.header
-            self.client_bl.operation_thread = threading.Thread(target=lambda: self.client_bl.sendfile(f , header_field=res_text, parent=self))
+            self.client_bl.operation_thread = threading.Thread(
+                target=lambda: self.client_bl.sendfile(
+                    f,
+                    [self.make_delete_callback, self.make_save_callback, self.make_share_callback],
+                    header_field=res_text,
+                    parent=self,
+                    animate=self.animate,
+                    file_rows = self.file_rows
+                )
+            )
             self.client_bl.operation_thread.start()
-            threading.Thread(target=self.animate).start()
         else:
             self.header.configure(text="File not found! Please select a file again.")
+            
+    def make_delete_callback(self,file_id: str, row: FileRow) -> Callable[[], None]:
+        # Define a wrapper for delete to remove row from UI
+        def callback():
+            # Call business logic
+            self.client_bl.delete_files([file_id],header_field=self.header, file_rows=self.file_rows)
+            # Remove row from UI
+            row.grid_forget()
+            # Optionally remove from list
+            self.file_rows.remove(row)
+        return lambda: threading.Thread(target=callback).start()
+    def make_save_callback(self,file_id: str, filename: str):
+        def callback():
+            self.client_bl.work_event.set()
+            threading.Thread(target=self.animate).start()
+            self.client_bl.ReceiveFile(file_id,filename, header_field=self.header)
+        return lambda: threading.Thread(target=callback).start()
+    def make_share_callback(self, file_id: str):
+        def callback():
+            ...
+        return None
         
     def animate(self):
         dots = [i*"." for i in range(7)]

@@ -1,5 +1,5 @@
 import socket
-from typing import Tuple,BinaryIO
+from typing import Callable, Tuple,BinaryIO
 import json
 import struct
 import os
@@ -13,11 +13,12 @@ import base64
 import threading
 from FileRow import FileRow
 from time import sleep
+from customtkinter import END
 CHUNK_SIZE = 1024 * 64
 FORMAT = "!I"
 class CClientBL():
     def __init__(self) -> None:
-        self.ADDR = ("127.0.0.1", 9999)
+        self.ADDR = ("127.0.0.1", 5050)
         
         self.conn: socket.socket | None = None
         self.user = {}
@@ -78,12 +79,7 @@ class CClientBL():
         global FORMAT
         try:
 
-
-            auth = {
-                    "username": username,
-                    "password": password,
-                    "cmd": cmd
-            }
+            auth = {"username": username,"password": password,"cmd": cmd}
             print(auth)
             encrypted_auth = self.fernet.encrypt(json.dumps(auth).encode())
             self.conn.send(struct.pack(FORMAT,len(encrypted_auth)) +  encrypted_auth)
@@ -96,16 +92,24 @@ class CClientBL():
                 self.user = response["user"]
                 self.files = response["files"]
                 self.username = auth["username"]
-                self.current_storage = response["user"]["curr_storage"] / (1024**2)
-                self.max_storage = response["user"]["max_storage"] / (1024**2)
+                self.current_storage = response["user"]["curr_storage"]
+                self.max_storage = response["user"]["max_storage"]
                 self.conn = self.conn
             return response
         except (ConnectionAbortedError, ConnectionError, ConnectionResetError):
             return {"status": False,"message": "Server Internal Error"}
     
-    
-    def sendfile(self,file: BinaryIO, **kwargs) -> None:
+    def sendfile(self,file: BinaryIO,callbacks: list[Callable], **kwargs) -> None:
+        """Sending file to server.
+
+        Args:
+            file (BinaryIO): Opened file in 'rb' (Read-Binary) mode.
+            callbacks (list[Callable]): callback functions: 0-delete, 1-save, 2- share
+        """
+        print("sendfile() started!")
         self.work_event.set()
+        threading.Thread(target=kwargs["animate"]).start() # starting animation in GUI
+
         global FORMAT
         header_field: CTkLabel =  kwargs["header_field"]
         parent: CTkScrollableFrame = kwargs["parent"]
@@ -115,55 +119,64 @@ class CClientBL():
         if file_size/(1024**2) + self.current_storage  > self.max_storage:
             header_field.configure(text= "You dont't have enough storage to upload this file")
             return
-        payload: dict[str, Any] = {
-            "cmd": "upload",
-            "filename":  file.name.split("/")[-1],
-            "filesize": file_size,
-        }
+        payload: dict[str, Any] = {"cmd": "upload","filename":  file.name.split("/")[-1],"filesize": file_size}
         self.send_message(payload) # sending a data into 
-
+        # sending file in chunks
         while chunk := file.read(CHUNK_SIZE):
             encrypted_chunk = self.fernet.encrypt(chunk)
             header = struct.pack(FORMAT, len(encrypted_chunk))
             self.conn.sendall(header + encrypted_chunk)
-        print("EOF")
         self.conn.sendall(struct.pack(FORMAT, 0))
-
-        response = self.get_message()
-        self.work_event.clear()
+        file.close()
+        response = self.get_message() # getting response
+        self.work_event.clear() # clearing working flag
         if response["status"]:
-            self.files.append({"file_id": response["file_id"] ,"filename": payload["filename"], "filesize": file_size / (1024**2)})
-            self.current_storage += file_size / (1024**2)
+            self.files.append({"file_id": response["file_id"] ,"filename": payload["filename"], "filesize": file_size})
+            self.current_storage += file_size 
             header_field.configure(text=response["message"])
-            row = parent.grid_size()[1]  # next empty row
+            last_row = parent.grid_size()[1]  # next empty row
             file_row = FileRow(
                 parent, response["file_id"],
                 file.name.split("/")[-1],
                 file_size,
                 datetime.now().strftime("%Y-%m-%d"),
-                lambda: threading.Thread(self.delete_files([response['file_id']],header_field=header_field)),
-                None,
-                None
+                on_delete=callbacks[0](response["file_id"],None),
+                on_save=callbacks[1](response["file_id"], file.name.split("/")[-1]),
+                on_share=callbacks[2]
             )
-            file_row.grid(row =row,column=0 , sticky="nsew", padx=5, pady=2) 
-            
-    
-    def delete_files(self,file_ids: list[str], **kwargs) -> None:
+            # Fix the row reference in the callback after row is created
+            file_row.on_delete = callbacks[0](response["file_id"], file_row)
+            file_row.grid(row =last_row,column=0 , sticky="nsew", padx=5, pady=2) 
+            kwargs["file_rows"].append(file_row)
+                
+    def delete_files(self,file_ids: list[str], **kwargs) -> dict[str, Any]:
         self.work_event.set()
         header = kwargs["header_field"]
 
-        payload = {
-            "cmd": "delete",
-            "ids": file_ids
-        }
+        payload = {"cmd": "delete", "ids": file_ids}
         self.send_message(payload)
         response = self.get_message()
+        if response["status"]:
+            pass
         self.work_event.clear()
-        header.configure(text=response["message"])
 
-    def ReceiveFile(self, file_id:str, filename:str):
-        ...
+    def ReceiveFile(self, file_id:str, filename:str, **kwargs):
+        header_field: CTkLabel =  kwargs["header_field"]
+        self.send_message({"cmd": "save", "file_id": file_id})
+        try:
+            with open(f"./{filename}","wb") as f:
+                while True:
+                    header: int = struct.unpack(FORMAT, self.recv_exact(4))[0]
+                    if header == 0:
+                        header_field.configure(text=f"file saved on: '/saved_files/{filename}'")
+                        self.work_event.clear()
+                        break
+                    decrypted = self.fernet.decrypt(self.recv_exact(header))
+                    f.write(decrypted)
+        except (ConnectionAbortedError, ConnectionResetError):
+            header_field.configure("Something when wrong with the server! Couldn't fulfill the request.")
 
+    
     @overload
     def send_message(self, payload: str): ...
     @overload 
@@ -174,15 +187,17 @@ class CClientBL():
 
         Args:
             payload (dict[str,Any] | str): payload to send.
-        """ 
+        """
+        print(f"sending {payload}...")
         if isinstance(payload, str):
             encrypted = self.fernet.encrypt(payload.encode())
             Header = struct.pack(FORMAT,len(encrypted))
-            self.conn.send(Header + encrypted)
+            print(f"Header Length: {Header}")
+            self.conn.sendall(Header + encrypted)
         if isinstance(payload, dict):    
             encrypted = self.fernet.encrypt(json.dumps(payload).encode())
             Header = struct.pack(FORMAT,len(encrypted))
-            self.conn.send(Header + encrypted)
+            self.conn.sendall(Header + encrypted)
 
     def get_message(self) -> dict[str, Any]:
         """Receiving response frm server
@@ -196,10 +211,10 @@ class CClientBL():
         return json.loads(self.fernet.decrypt(encrypted_payload).decode())
     
     def recv_exact(self, size: int) -> bytes:
-        data = b""
+        data = bytearray()
         while len(data) < size:
             packet = self.conn.recv(size - len(data))
             if not packet:
                 raise ConnectionError("Socket closed unexpectedly")
-            data += packet
-        return data
+            data.extend(packet)
+        return bytes(data)

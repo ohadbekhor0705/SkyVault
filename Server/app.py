@@ -4,13 +4,13 @@ from protocol import *
 from flask_login import LoginManager
 from routes import  register_routes
 import os
-def create_app() -> Flask:
+def create_app(tokens: dict = {}) -> Flask:
 
     app = Flask(__name__)
     app.config['SECRET_KEY'] = str(os.urandom(24))
 
 
-    register_routes(app)
+    register_routes(app, tokens)
 
     # Configure Flask-Login
     login_manager = LoginManager()

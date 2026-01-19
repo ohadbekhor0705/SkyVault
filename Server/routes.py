@@ -1,41 +1,34 @@
 from typing import Literal
-from flask import render_template, Request, Response, request, jsonify
+from flask import render_template, request, jsonify, Flask, redirect, url_for
 from flask_login import current_user, login_user, logout_user, login_required
 from sqlalchemy.orm.session import Session
 from models import File
-from protocol import *
+from protocol2 import *
 from copy import copy
-def register_routes(app):
+def register_routes(app: Flask, tokens: dict):
     """Creating routes for Flask Application.
 
     Args:
-        app (_type_): flask app.
+        app (Flask): flask app.
     """    
 
     @app.route("/")
-    def Home() -> str:
-        return render_template("index.html")
+    def Home() -> str: return render_template("index.html")
 
 
     @app.route("/Login")
-    def Login():
-        return render_template("Login.html")
+    def Login(): return render_template("Login.html")
 
     @app.route("/handle_login", methods=["POST"])
     def HandleLogin() -> tuple[Literal[''], Literal[200]] | tuple[Literal[''], Literal[401]]:
         payload = request.get_json()
-        print(payload)
-        if _user :=getUser(payload):
-            print(_user.toDict())
-            print(login_user(_user))
+        if _user :=getUser(payload): 
+            login_user(_user)
             return "", 200
-        else:
-            return jsonify({"message": "Invalid Password or Username!"}), 401
-
+        else: return jsonify({"message": "Invalid Password or Username!"}), 401
     @login_required
-    @app.route('/logout', methods=["POST"])
-    def Logout():
-        logout_user()
+    @app.route('/logout')
+    def Logout(): return logout_user()
 
     @app.route("/Browse")
     @login_required

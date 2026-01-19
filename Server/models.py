@@ -67,8 +67,8 @@ class File(Base, UserMixin):
     filesize: Column[int] = Column(Integer, nullable=False)
     modified: Column[int] = Column(Integer, nullable=False)
     user_id: Column[int] = Column(Integer, ForeignKey("users.user_id"))
-
     user = relationship("User", back_populates="files")
+
 
 # SQLite engine (thread-safe)
 engine = create_engine(

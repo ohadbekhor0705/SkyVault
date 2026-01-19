@@ -4,8 +4,10 @@ import threading  # Import threading for concurrent connections
 import json  # Import json for message serialization
 import os  # Import os for file system operations
 from tkinter.ttk import Treeview  # Import Treeview for GUI client table
-from typing import Callable, List, Tuple, Dict  # Type hints
-from protocol import *  # Import protocol definitions
+from typing import Callable, List, Tuple, Dict
+
+from sqlalchemy.orm.session import Session  # Type hints
+from protocol2 import *  # Import protocol definitions
 import bcrypt  # Import bcrypt for password hashing
 from models import User,File,SessionLocal # Import db for Database operations
 import struct
@@ -21,10 +23,10 @@ from run import run
 class CServerBL():
     def __init__(self) -> None:
         self._ip: str = "0.0.0.0"  # Server IP address
-        self._port: int = 9999  # Server port
+        self._port: int = 5050  # Server port
         self.server_socket: socket.socket | None = None  # Main server socket
         self.logger_box = None
-        self.clientHandlers: List[CClientHandler] = []  # List of client handler threads
+        self.clientHandlers: list[CClientHandler] = []  # List of client handler threads
         self.event = threading.Event()  # Event flag for server loop
         self.main_thread: threading.Thread | None = None  # Main server thread
         self.web_server: threading.Thread = threading.Thread(target=run, daemon=True)
@@ -53,16 +55,17 @@ class CServerBL():
         self.write_to_log(self)  # Log server start
         #self.web_server.start()
         try:
+            self.clientHandlers
             self.event.set()  # Set event flag
-            self.web_server.start()
+            #self.web_server.start()
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create socket
-            self.server_socket.bind((self._ip, self._port))  # Bind socket to IP and port
+            self.server_socket.bind((self._ip, self._port))  # Bind socket to IP and PORT
             self.server_socket.listen(5)  # Listen for connections
             self.write_to_log(f"[SERVER] is running at \nIP: {socket.gethostbyname(socket.gethostname())} \nPORT: {self._port}")
             while self.event.is_set() and self.server_socket is not None:  # Main accept loop
                 client, address = self.server_socket.accept()  # Accept new client
                 header = struct.pack(FORMAT, len(self.pem_public))
-                client.send(header + self.pem_public) # Sending public key to client
+                client.sendall(header + self.pem_public) # Sending public key to client
                 
 
                 encrypted_session_key_len_bytes = client.recv(4)
@@ -72,39 +75,13 @@ class CServerBL():
                 f = fernet.Fernet(session_key)
                 self.write_to_log(client)
                 # getting payload from client
-                payload_length_bytes: bytes = client.recv(4) 
-                payload_bytes: bytes = f.decrypt(client.recv(struct.unpack(FORMAT,payload_length_bytes)[0])).decode()
-                payload: dict = json.loads(payload_bytes.encode())
-                self.write_to_log(f"[CClientBL] Authentication payload received: {payload}")
-            
-                response = {
-                    "status": False,
-                    "message": "<authentication Response from server>"
-                }
-                # Handle login command
-                if payload["cmd"] == "login":
-                    if (_user  := getUser(payload)):
-                        self.createHandler(client, address,_user, f)  # Create handler thread
-                        response = {"status": True, "message": f"Welcome back, {payload['username']}", "user": _user.toDict()}
-                        uid: int = _user.user_id
-                        files: list[dict[str, Any]] = files_by_id(uid)
-                        response["files"] = files
-                    else:
-                        response = {"status": False, "message": "Username or password are Invalid!"}
-
-                # Handle register command
-                elif payload["cmd"] == "register":
-                    payload["password_hash"] = bcrypt.hashpw(payload["password"].encode("utf-8"),bcrypt.gensalt()).decode()
-                    response = InsertUser(payload)
-                    if response["status"] == True:
-                        user: User | None = getUser(payload)
-                        response["user"] = user.toDict()
-                        response["files"] = []
-                        self.createHandler(client,address,user,f)
-                
-                # Send response to client 
-                encrypted_response = f.encrypt(json.dumps(response).encode())
-                client.send(struct.pack(FORMAT,len(encrypted_response)) + encrypted_response)
+                self.createHandler(
+                    client,
+                    address,
+                    None,
+                    f,
+                    self.event
+                )
         except OSError as e:
             pass  # Ignore OS errors
         #except Exception as e:
@@ -121,7 +98,6 @@ class CServerBL():
             self.write_to_log(f"[ServerBL] cleared flag!")
             for clientHandler in self.clientHandlers:
                 if clientHandler:
-                    clientHandler.client.send(b"!DIS") # sending connection
                     clientHandler.disconnect()  # Disconnect client
                     clientHandler.join()  # Wait for thread to finish
             self.clientHandlers = []  # Clear handler list
@@ -129,13 +105,20 @@ class CServerBL():
             if self.server_socket:
                 self.server_socket.close()  # Close server socket
                 self.server_socket = None
-            
+            self.event.clear()
             self.main_thread = None  # Clear main thread
             self.write_to_log("[CServerBL] Closed server!")  # Log closed
         except Exception as e:
             self.write_to_log(f"[ServerBL] Exception at stop_server(): {e}")  # Log exceptions
 
-    def createHandler(self, client_socket: socket.socket, client_address, user: User, f: fernet.Fernet) -> None:
+    def createHandler(
+            self,
+            client_socket: socket.socket,
+            client_address,
+            user: User,
+            f: fernet.Fernet,
+            event: threading.Event
+    ) -> None:
         """Creating new ClientHandler to handle client requests
 
         Args:
@@ -144,7 +127,7 @@ class CServerBL():
             user (User): user object containing client data
             f (Fernet): Fernet object to handle Encryption and Decryption. 
         """        
-        client_handler: CClientHandler = CClientHandler(client_socket, client_address, user, f,  self.write_to_log)  # Create handler
+        client_handler: CClientHandler = CClientHandler(client_socket, client_address, f,  self.write_to_log, self.event)  # Create handler
         self.clientHandlers.append(client_handler)  # Add to handler list
         client_handler.start()  # Start handler thread
     
@@ -154,6 +137,7 @@ class CServerBL():
     def write_to_log(self, msg: Any) -> None:
         if self.logger_box:
             self.logger_box.insert("end",f"{msg}\n")
+        print(msg)
 
 class CClientHandler(threading.Thread):
     """
@@ -177,24 +161,36 @@ class CClientHandler(threading.Thread):
         client_address (Tuple[str,int]): Client's address information
     """
     
-    def __init__(self, client_socket: socket.socket, client_address, user: User, f: fernet.Fernet, write_to_log) -> None:
+    def __init__(
+        self, 
+        client_socket: socket.socket,
+        client_address,
+        f: fernet.Fernet,
+        write_to_log,
+        event: threading.Event
+    ) -> None:
         super().__init__()
+        self.db: Session = SessionLocal()
         self.client: socket.socket | None= client_socket
         self.address: Tuple[str,int]  = client_address
         self.client: socket.socket = client_socket
         self.connected = True
-        self.user: User = user
+        self.user: User | None = None
         self.daemon = True
         self.write_to_log = write_to_log
         self.f: fernet.Fernet = f
-
+        self.event = event
+        
         if not os.path.exists("./StorageFiles"):
             os.mkdir("./StorageFiles")
     # This code run for every client in a different thread
+    
     def run(self) -> None:
         # Server functionality here
-        self.write_to_log(f"[CClientBl] {threading.active_count() - 1} Are currently connected!")
-        while True:
+        self.write_to_log(f"[CClientBl] {threading.active_count() - 2} Are currently connected!")
+        i = 0
+        while self.event.is_set():
+            #print(i)
             try:
                 message: str | None = self.get_message()
                 if message:
@@ -209,12 +205,16 @@ class CClientHandler(threading.Thread):
             except ConnectionAbortedError:
                 self.write_to_log("ClientHandler -> run()] client connection Aborted!")
                 break
+            i+=1
         self.disconnect()
 
     def get_message(self) -> str | None:
+        self.write_to_log(f"Getting message from: {self}")
         header = self.client.recv(4)
+        if not header:
+            raise ConnectionAbortedError()
         message_length: int = struct.unpack("!I",header)[0]
-        encrypted  =self.client.recv(message_length)
+        encrypted = self.client.recv(message_length)
         return self.f.decrypt(encrypted).decode()
     
     def send_message(self, data: dict[str,Any]):
@@ -223,22 +223,16 @@ class CClientHandler(threading.Thread):
         self.client.sendall(header + encrypted_data) # sending header with encrypted data
     
     def disconnect(self) -> None:
-        self.write_to_log(f"[SERVER-BL] {self} disconnected")
+        self.write_to_log(f"[SERVER-BL]: {self} disconnected")
         self.connected = False
         if self.client:
             self.client.close()
         self.client = None
         del self
      
-    def __repr__(self) -> str: return f"<ClientHandler({self.address=}, {socket.gethostbyaddr(self.address[0])}>"
+    def __repr__(self) -> str: return f"[{self.address[0]}:{self.address[1]}]"
 
 if __name__ == "__main__":
-        print("Press Ctrl + C to exit.")
-        server = CServerBL()
-        server.start_server()
-        try:
-            from time import sleep
-            while True:
-                sleep(1)
-        except KeyboardInterrupt:
-            server.stop_server()
+    print("Press Ctrl + C to exit.")
+    server = CServerBL()
+    server.start_server()

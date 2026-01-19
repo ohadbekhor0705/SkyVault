@@ -7,8 +7,6 @@ class AuthFrame(ctk.CTkFrame):
     def __init__(
         self,
         master,
-        on_login: Optional[Callable[[str, str], None]] = None,
-        on_register: Optional[Callable[[str, str], None]] = None,
         on_back_home: Optional[Callable[[], None]] = None,
         frames: dict[str, ctk.CTkFrame] = {},
         client_bl: CClientBL = None,
@@ -16,8 +14,6 @@ class AuthFrame(ctk.CTkFrame):
     ):
         super().__init__(master, **kwargs)
         self.main_container = master
-        self.on_login = on_login
-        self.on_register = on_register
         self.on_back_home = on_back_home
         self.mode = "login"
         self.frames = frames
@@ -94,7 +90,7 @@ class AuthFrame(ctk.CTkFrame):
             command=self._go_home
         )
         self.back_home_button.grid(row=6, column=0, pady=(5, 30))
-
+        self.bind("<Enter>", self._submit)
         self._apply_mode()
 
     def _switch_mode(self):
@@ -109,6 +105,7 @@ class AuthFrame(ctk.CTkFrame):
         self.switch_button.configure(
             text="Back to login" if is_register else "Create an account"
         )
+        self.bind("<Enter>", self._submit)
 
     def _submit(self):
         username = self.username_entry.get().strip()
@@ -117,12 +114,13 @@ class AuthFrame(ctk.CTkFrame):
         if not username or not password:
             self.message_label.configure(text="Please fill in all fields", text_color="indianred1")
             return 
-
+        self.submit_button.configure(state="disabled")
         # Call BL
         response = self.client_bl.connect(username, password, self.mode)
+        print(response)
         if response["status"]:
             # Success
-            self.message_label.configure(text="Success!", text_color="lightgreen")
+            self.message_label.configure(text="Success! "+response["message"], text_color="lightgreen")
             main = MainFrame(
                 self.main_container,
                 self.frames,
@@ -133,9 +131,9 @@ class AuthFrame(ctk.CTkFrame):
             main.tkraise()
         else:
             # Failure - Display the message returned from the BL
-            error_msg = response["message"]
-            self.message_label.configure(text=error_msg, text_color="indianred1")
+            self.message_label.configure(text=response["message"], text_color="indianred1")
+        self.submit_button.configure(state="active")
 
-    def _go_home(self):
-        if self.on_back_home:
+    def _go_home(self) -> None: 
+        if self.on_back_home: 
             self.on_back_home()

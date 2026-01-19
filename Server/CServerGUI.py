@@ -36,7 +36,7 @@ class CServerGUI(CServerBL):
     def toggle_server(self) -> None:
         if self.serverSwitch.get() == "on":
             self.write_to_log("on")
-            self.main_thread = threading.Thread(target=self.start_server)
+            self.main_thread = threading.Thread(target=self.start_server, daemon=True)
             self.main_thread.start()
         if self.serverSwitch.get() == "off":
             self.write_to_log("off")

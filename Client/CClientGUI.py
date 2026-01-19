@@ -9,6 +9,7 @@ class App(ctk.CTk):
         super().__init__()
         print("Initializing App")
         self.title("SkyVault")
+        self.minsize(1200,600)
         self.client_bl = client_bl
         self.frames: dict[str, ctk.CTkFrame] = {}
         try:
@@ -31,8 +32,6 @@ class App(ctk.CTk):
 
         self.auth = AuthFrame(
             container,
-            on_login=lambda u, p: print("Login:", u),
-            on_register=lambda u, e, p: print("Register:", u),
             on_back_home=lambda: self.home.tkraise(),
             frames=self.frames,
             client_bl = self.client_bl
@@ -43,10 +42,8 @@ class App(ctk.CTk):
             page.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self.home.tkraise()
-
 if __name__ == "__main__": 
     client_bl = CClientBL()
     client_bl.process_handshake()
     app = App(client_bl)
-   
     app.mainloop()

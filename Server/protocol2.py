@@ -115,12 +115,12 @@ def InsertUser(user: Dict[str,Any]) -> Dict:
     finally:
         db.close()
 
-def files_by_id(uid: int) -> list[dict[str,Any]]:
-    with SessionLocal() as db:
-        files  = db.query(File).filter(File.user_id == uid).all()
-        if not files:
-            return []
-        return [ {"file_id": f.file_id ,"filename": f.filename, "filesize": f.filesize, "modified": f.modified} for f in files]
+def files_by_id(uid: int, db: Session) -> list[dict[str,Any]]:
+    files  = db.query(File).filter(File.user_id == uid).all()
+    if not files:
+        return []
+    return [ {"file_id": f.file_id ,"filename": f.filename, "filesize": f.filesize, "modified": f.modified} for f in files]
+
 
 def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
     """Uploading a file
@@ -135,6 +135,7 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
     """
     fernet = ClientHandler.f
     client: socket.socket = ClientHandler.client
+    db: Session = ClientHandler.db
     file_id = str(uuid7())
     file_size = payload["filesize"]
     HEADER_SIZE = struct.calcsize(FORMAT) # Ensure FORMAT matches (e.g., "!I")
@@ -148,7 +149,6 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
                 #  Read the length of the ENCRYPTED chunk
                 header_bytes = recv_exact(client,HEADER_SIZE)
                 header = struct.unpack(FORMAT, header_bytes)[0]
-                print(f"header: {header}")
                 if header == 0: break  #  Check for EOF (The 0 at the end)
                 original_chunk = fernet.decrypt(recv_exact(client, header))
                 file_encryption = file_fernet.encrypt(original_chunk)
@@ -162,9 +162,7 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
         except FileNotFoundError: pass
         return None
 
-    db = SessionLocal()
-    user_in_session: User = db.merge(ClientHandler.user)
-    user_in_session.curr_storage += payload["filesize"]
+    ClientHandler.user.curr_storage += payload["filesize"]
     uploaded_file =  File(
         file_id=file_id,
         filename=payload["filename"],
@@ -174,7 +172,6 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
     )
     db.add(uploaded_file)
     db.commit()
-    db.close()
     return {"status": True, "message": payload["filename"]+" Uploaded!","file_id":file_id}
 
 
@@ -190,21 +187,20 @@ def SendFile(file_id: str, ClientHandler) -> None:
     """
     client: socket.socket = ClientHandler.client
     try:
-        with open(f"{file_id}.encrypted", "rb") as f:
+        ClientHandler.write_to_log(f"Sending file to {ClientHandler}...")
+        with open(f"StorageFiles/{file_id}.encrypted", "rb") as f:
             while header:= f.read(4):
+                print(header)
                 original_chunk: bytes = file_fernet.decrypt(f.read(struct.unpack(FORMAT,header)[0]))
                 encrypted: bytes = ClientHandler.f.encrypt(original_chunk)
-                client.sendall(
-                    struct.pack(FORMAT, len(encrypted)) +
-                    encrypted
-                )
-
-
+                client.sendall(struct.pack(FORMAT, len(encrypted)) +encrypted)
             client.sendall(struct.pack(FORMAT,0))
-
+        ClientHandler.write_to_log(f"finished sending file to {ClientHandler}!")
     except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
         pass
     return None
+
+
 
 def DeleteFile(file_ids: list[str], ClientHandler)-> dict[str, Any]:
     """Deleting files by file ids and updating current storage of user
@@ -214,23 +210,21 @@ def DeleteFile(file_ids: list[str], ClientHandler)-> dict[str, Any]:
         user (User): User Object.
     Returns:
         dict[str, Any]: Response from server.
-    """    
+    """ 
+    db: Session = ClientHandler.db   
     try:
-        with SessionLocal() as db:
-            print(file_ids)
-            # get the total size of all deleted files:
-            # generates SELECT SUM(filesize) FROM Files WHERE file_id IN {file_ids}
-            total_size: int = db.query(func.sum(File.filesize))\
-                                .filter(File.file_id.in_(file_ids))\
-                                .scalar() or 0
-            # delete all the files from the db
-            db.query(File)\
-            .filter(File.file_id.in_(file_ids))\
-            .delete(synchronize_session=False)
-            # attach user to the session
-            user_in_session: User = db.merge(ClientHandler.user)
-            user_in_session.curr_storage - total_size
-            db.commit()
+        # get the total size of all deleted files:
+        # generates SELECT SUM(filesize) FROM Files WHERE file_id IN {file_ids}
+        total_size: int = db.query(func.sum(File.filesize))\
+                            .filter(File.file_id == file_ids[0])\
+                            .scalar() or 0
+        # delete all the files from the db
+        db.query(File)\
+        .filter(File.file_id.in_(file_ids))\
+        .delete(synchronize_session=False)
+        # attach user to the session
+        ClientHandler.user.curr_storage - total_size
+        db.commit()
         for file_id in file_ids:
             os.remove(f"./StorageFiles/{file_id}.encrypted")
         return {"status": True, "message": "File(s) deleted successfully"}
@@ -238,10 +232,10 @@ def DeleteFile(file_ids: list[str], ClientHandler)-> dict[str, Any]:
         print(e)
         return {"status": False, "message": "The server Couldn't delete this file(s)."}
 
-def createLink(file_id: str)-> dict[str, Any]:
+
+def createLink(file_id: str, db: Session)-> dict[str, Any]:
     try:
-        with SessionLocal() as db:
-            file: File = db.query(File).filter(File.file_id == file_id).one()
+        file: File = db.query(File).filter(File.file_id == file_id).one()
         return {"status": True,"message": "Share link created!", "link": ""}
     except:
         return {"status": False,"message": "Couldn't Create share link."}
@@ -259,7 +253,27 @@ def handle_client_request(payload: dict[str, Any],ClientHandler) -> dict[str, An
         dict[str, Any] | None: Server Response.
     """    
     response: dict[str, Any] | None = {}
+    ClientHandler.write_to_log(f"fetch {ClientHandler} Request: "+payload["cmd"])
     match payload["cmd"]:
+        case "login":
+            if (_user  := getUser(payload)):
+                response = {"status": True, "message": "Welcome back, "+payload['username'], "user": _user.toDict()}
+                uid: int = _user.user_id
+                files: list[dict[str, Any]] = files_by_id(uid, ClientHandler.db)
+                ClientHandler.user = ClientHandler.db.merge(_user)
+                print(ClientHandler.user)
+                response["files"] = files
+            else:
+                response = {"status": False, "message": "Username or password are Invalid!"}
+        case "register":
+            payload["password_hash"] = bcrypt.hashpw(payload["password"].encode("utf-8"),bcrypt.gensalt()).decode()
+            response = InsertUser(payload)
+            if response["status"] == True:
+                user: User | None = ClientHandler.db.merge(getUser(payload))
+                ClientHandler.user = user
+                print(user)
+                response["user"] = user.toDict()
+                response["files"] = []
         case "upload":
             response = UploadFile(payload,ClientHandler)
         case "delete":
@@ -267,19 +281,20 @@ def handle_client_request(payload: dict[str, Any],ClientHandler) -> dict[str, An
         case "save":
             response = SendFile(payload["file_id"], ClientHandler)
         case "createLink":
-            response = createLink(payload["file_id"])
+            response = createLink(payload["file_id"], ClientHandler.db)
         case _:
             response = {"status": False, "message": "Invalid command"}
     return response
 
-def recv_exact(sock, size):
-    
+def recv_exact(sock: socket.socket, size: int) -> bytes:
+
     if size < 0:
         raise ValueError("size must be non negative")
     data = bytearray()
     while len(data) < size:
-        packet = sock.recv(size - len(data))
+        packet: bytes = sock.recv(size - len(data))
         if not packet:
             raise ConnectionError("Socket closed unexpectedly")
         data.extend(packet)
     return bytes(data)
+

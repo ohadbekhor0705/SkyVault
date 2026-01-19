@@ -85,9 +85,7 @@ class FileRow(ctk.CTkFrame):
         for w in widgets:
             self._bind_hover(w)
 
-    # ----------------------
     # Hover handling
-    # ----------------------
 
     def _bind_hover(self, widget):
         widget.bind("<Enter>", self._on_enter)
@@ -99,10 +97,7 @@ class FileRow(ctk.CTkFrame):
     def _on_leave(self, event=None):
         self.configure(fg_color=self.default_fg)
 
-    # ----------------------
     # Menu handling
-    # ----------------------
-
     def _show_menu(self):
         x = self.menu_button.winfo_rootx()
         y = self.menu_button.winfo_rooty() + self.menu_button.winfo_height()

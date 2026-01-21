@@ -48,9 +48,7 @@ class AuthFrame(ctk.CTkFrame):
         )
         self.password_entry.grid(row=2, column=0, padx=60, pady=12, sticky="ew")
 
-        # ----------------------------
-        # NEW: Response Message Label
-        # ----------------------------
+        # Response Message Label
         self.message_label = ctk.CTkLabel(
             self.panel,
             text="",  # Starts empty
@@ -105,7 +103,7 @@ class AuthFrame(ctk.CTkFrame):
         self.switch_button.configure(
             text="Back to login" if is_register else "Create an account"
         )
-        self.bind("<Enter>", self._submit)
+        self.bind("<Return>", self._submit)
 
     def _submit(self):
         username = self.username_entry.get().strip()
@@ -136,4 +134,6 @@ class AuthFrame(ctk.CTkFrame):
 
     def _go_home(self) -> None: 
         if self.on_back_home: 
+            self.username_entry.configure(text="")
+            self.password_entry.configure(text="")
             self.on_back_home()

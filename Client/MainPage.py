@@ -41,7 +41,7 @@ class MainFrame(ctk.CTkScrollableFrame):
                     self,
                     f["file_id"],
                     f["filename"],
-                    f["filesize"],
+                    f["size"],
                     f["modified"],
                     on_delete=self.make_delete_callback(f["file_id"], None),  # placeholder row, will fix below
                     on_save=self.make_save_callback(f["file_id"], f["filename"]),
@@ -55,7 +55,7 @@ class MainFrame(ctk.CTkScrollableFrame):
                 self.file_rows.append(row)
     def _on_click_Upload(self) -> None:
         # if other tasks are running then prevent from user from sending other network requests
-        if self.client_bl.operation_thread  and self.client_bl.operation_thread.is_alive():
+        if self.client_bl._operation_thread  and self.client_bl._operation_thread.is_alive():
             print("Another task is running!")
             return 
         filename: str = fd.askopenfilename(
@@ -65,7 +65,7 @@ class MainFrame(ctk.CTkScrollableFrame):
         if filename:
             f = open(filename,"rb")
             res_text = self.header
-            self.client_bl.operation_thread = threading.Thread(
+            self.client_bl._operation_thread = threading.Thread(
                 target=lambda: self.client_bl.sendfile(
                     f,
                     [self.make_delete_callback, self.make_save_callback, self.make_share_callback],
@@ -75,7 +75,7 @@ class MainFrame(ctk.CTkScrollableFrame):
                     file_rows = self.file_rows
                 )
             )
-            self.client_bl.operation_thread.start()
+            self.client_bl._operation_thread.start()
         else:
             self.header.configure(text="File not found! Please select a file again.")
             

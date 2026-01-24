@@ -1,9 +1,10 @@
 import customtkinter as ctk
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 from CClientBL import CClientBL
 import threading
 from MainPage import MainFrame
 class AuthFrame(ctk.CTkFrame):
+    # Insert 
     def __init__(
         self,
         master,
@@ -88,10 +89,10 @@ class AuthFrame(ctk.CTkFrame):
             command=self._go_home
         )
         self.back_home_button.grid(row=6, column=0, pady=(5, 30))
-        self.bind("<Enter>", self._submit)
+        #self.bind("<Enter>", self._submit)
         self._apply_mode()
 
-    def _switch_mode(self):
+    def _switch_mode(self) -> None:
         self.mode = "register" if self.mode == "login" else "login"
         self.message_label.configure(text="") # Clear message on switch
         self._apply_mode()
@@ -105,7 +106,7 @@ class AuthFrame(ctk.CTkFrame):
         )
         self.bind("<Return>", self._submit)
 
-    def _submit(self):
+    def _submit(self) -> None:
         username = self.username_entry.get().strip()
         password = self.password_entry.get().strip()
 
@@ -114,8 +115,7 @@ class AuthFrame(ctk.CTkFrame):
             return 
         self.submit_button.configure(state="disabled")
         # Call BL
-        response = self.client_bl.connect(username, password, self.mode)
-        print(response)
+        response: dict[str, Any] = self.client_bl.connect(username, password, self.mode)
         if response["status"]:
             # Success
             self.message_label.configure(text="Success! "+response["message"], text_color="lightgreen")

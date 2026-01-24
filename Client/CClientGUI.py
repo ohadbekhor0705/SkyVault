@@ -9,8 +9,8 @@ class App(ctk.CTk):
         super().__init__()
         print("Initializing App")
         self.title("SkyVault")
-        self.minsize(1200,600)
-        self.client_bl = client_bl
+        self.minsize(1300,750)
+        self.client_bl: CClientBL = client_bl
         self.frames: dict[str, ctk.CTkFrame] = {}
         try:
             self.state("zoomed")
@@ -37,7 +37,7 @@ class App(ctk.CTk):
             client_bl = self.client_bl
         )
         self.frames["Home"] = self.home        
-        self.frames["Auth"] = self.auth        
+        self.frames["Auth"] = self.auth
         for page in (self.home, self.auth):
             page.place(relx=0, rely=0, relwidth=1, relheight=1)
 

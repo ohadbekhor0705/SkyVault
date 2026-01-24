@@ -2,7 +2,7 @@ import customtkinter as CTk
 from tkinter import ttk
 from CServerBL import CServerBL
 import threading
-from protocol import *
+from protocol2 import *
 class CServerGUI(CServerBL):
     def __init__(self) -> None:
         super().__init__()
@@ -30,13 +30,13 @@ class CServerGUI(CServerBL):
                                           font=self.FONT,onvalue="on", offvalue="off", command=self.toggle_server )
         self.serverSwitch.place(relx = 0.05, rely = 0.25)
 
-        self.logger_box = CTk.CTkTextbox(self.master,font=("consolas",12),text_color="#069926")
+        self.logger_box = CTk.CTkTextbox(self.master,font=("consolas",12),text_color="#34AA4E")
         self.logger_box.place(relx=0.05, rely=0.34,relheight=0.6,relwidth=0.9)
     
     def toggle_server(self) -> None:
         if self.serverSwitch.get() == "on":
             self.write_to_log("on")
-            self.main_thread = threading.Thread(target=self.start_server, daemon=True)
+            self.main_thread = threading.Thread(target=self._start_server, daemon=True)
             self.main_thread.start()
         if self.serverSwitch.get() == "off":
             self.write_to_log("off")

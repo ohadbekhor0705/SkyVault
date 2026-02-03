@@ -3,4 +3,5 @@ cryptography
 uuid
 bcrypt
 uuid6
-pyopenssl 
+pyopenssl
+flask

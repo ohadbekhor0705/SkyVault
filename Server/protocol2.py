@@ -7,7 +7,6 @@ import bcrypt
 from datetime import datetime
 from uuid6 import uuid7
 import os
-from dotenv import load_dotenv
 from uuid import uuid4
 from cryptography.fernet import Fernet
 import sqlite3

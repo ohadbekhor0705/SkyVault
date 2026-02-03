@@ -11,6 +11,7 @@ class FileRow(ctk.CTkFrame):
         file_name: str,
         file_size: str,
         date_modified: str,
+        file_hash: bytes,
         on_delete: Optional[Callable[[str], None]] = None,
         on_save: Optional[Callable[[str], None]] = None,
         on_share: Optional[Callable[[str], None]] = None,
@@ -22,7 +23,7 @@ class FileRow(ctk.CTkFrame):
         self.on_delete = on_delete
         self.on_save = on_save
         self.on_share = on_share
-
+        self.file_hash = file_hash
         # Colors for hover behavior
         self.default_fg = self.cget("fg_color")
         self.hover_fg = ("#2b2b2b", "#3a3a3a")  # light / dark mode safe

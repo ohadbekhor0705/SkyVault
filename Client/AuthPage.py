@@ -4,7 +4,6 @@ from CClientBL import CClientBL
 import threading
 from MainPage import MainFrame
 class AuthFrame(ctk.CTkFrame):
-    # Insert 
     def __init__(
         self,
         master,
@@ -89,14 +88,11 @@ class AuthFrame(ctk.CTkFrame):
             command=self._go_home
         )
         self.back_home_button.grid(row=6, column=0, pady=(5, 30))
-        #self.bind("<Enter>", self._submit)
         self._apply_mode()
-
     def _switch_mode(self) -> None:
         self.mode = "register" if self.mode == "login" else "login"
         self.message_label.configure(text="") # Clear message on switch
         self._apply_mode()
-
     def _apply_mode(self):
         is_register = self.mode == "register"
         self.title_label.configure(text="Register" if is_register else "Login")
@@ -105,7 +101,6 @@ class AuthFrame(ctk.CTkFrame):
             text="Back to login" if is_register else "Create an account"
         )
         self.bind("<Return>", self._submit)
-
     def _submit(self) -> None:
         username = self.username_entry.get().strip()
         password = self.password_entry.get().strip()
@@ -131,7 +126,6 @@ class AuthFrame(ctk.CTkFrame):
             # Failure - Display the message returned from the BL
             self.message_label.configure(text=response["message"], text_color="indianred1")
         self.submit_button.configure(state="active")
-
     def _go_home(self) -> None: 
         if self.on_back_home: 
             self.username_entry.configure(text="")

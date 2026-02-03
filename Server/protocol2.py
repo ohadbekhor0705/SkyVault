@@ -11,9 +11,10 @@ from dotenv import load_dotenv
 from uuid import uuid4
 from cryptography.fernet import Fernet
 import sqlite3
+DB_PATH = "./mydb.db"
 FORMAT = "!I"
 CHUNK_SIZE = 1024 *64  # 64 KB
-
+client_ids: list[int] = []
 def get_encryption_key():
     if not os.path.exists("./key.bin"):
         key = Fernet.generate_key()
@@ -44,19 +45,19 @@ def getUser(login: dict | int) -> dict[str, Any] | None:
     Returns:
     """
     keys = ["user_id", "username", "password_hash", "max_storage", "curr_storage", "tries", "disabled"]
-    with sqlite3.connect("./mydb.db") as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         cur = conn.cursor()
         res: dict[str, Any] | None = None
         if isinstance(login, int):
-            values = cur.execute("SELECT * FROM users WHERE user_id == ? ",(login,)).fetchone()
+            values = cur.execute("SELECT * FROM users WHERE user_id == ?",(login,)).fetchone()
             if not values:
                 return None
         if isinstance(login, dict):
-            values = cur.execute("SELECT * FROM users WHERE username == :username AND disabled = 0 AND tries < 3",login).fetchone()
+            values = cur.execute("SELECT * FROM users WHERE username == :username AND disabled = 0",login).fetchone()
             if not values:
                 return None
-            if values[5] > 3:
-                cur.execute("UPDATE users SET disabled = 1 WHERE user_id = ?", (values[0]))
+            elif values[5] < 3:
+                cur.execute("UPDATE users SET tries = tries + 1 WHERE user_id = ?",(values[0],))
             if not bcrypt.checkpw(login["password"].encode(),values[2]):
                 cur.execute("UPDATE users SET tries = tries + 1 WHERE username = :username",login)
                 return None
@@ -71,7 +72,7 @@ def InsertUser(user: Dict[str,Any]) -> tuple[dict[str, Any], None] | tuple[dict[
         Dict: A dictionary with 'status' indicating success and 'response' message.
     """
     
-    with sqlite3.connect("./mydb.db") as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         cur = conn.cursor()
         if username_exists(user["username"],cursor=cur):
             return {"status":False, "message": "This username is already taken"}, None
@@ -122,7 +123,7 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
         print(f"file received from: {ClientHandler}.")
         cur: sqlite3.Cursor =  ClientHandler.db_conn.cursor()
         cur.execute("UPDATE users SET curr_storage = curr_storage + ? WHERE user_id = ? ", (payload["filesize"],ClientHandler.user_id))
-        cur.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?)",(file_id,payload["filename"],payload["filesize"], int(datetime.now().timestamp()), ClientHandler.user_id))
+        cur.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?,?)",(file_id,payload["filename"],payload["filesize"], int(datetime.now().timestamp()), payload["hash"].encode(), ClientHandler.user_id))
         ClientHandler.db_conn.commit()
 
     
@@ -157,6 +158,7 @@ def SendFile(file_id: str, ClientHandler) -> None:
         pass
     return None
 def DeleteFile(file_id, ClientHandler)-> dict[str, Any]:
+    print(file_id)
     """Deleting files by file ids and updating current storage of user
 
     Args:
@@ -212,7 +214,6 @@ def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> di
     match payload["cmd"]:
         case "login":
             if _user := getUser(payload):
-                print(_user)
                 response = {
                     "status": True,
                     "message": "Welcome back"+payload["username"]+"!",
@@ -231,7 +232,7 @@ def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> di
         case "upload":
             response = UploadFile(payload,ClientHandler)
         case "delete":
-            response = DeleteFile(payload["ids"][0], ClientHandler)
+            response = DeleteFile(payload["id"], ClientHandler)
         case "save":
             response = SendFile(payload["file_id"], ClientHandler)
         case "createLink":

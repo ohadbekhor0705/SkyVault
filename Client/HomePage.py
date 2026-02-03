@@ -3,15 +3,6 @@ from typing import Callable, Optional
 
 
 class HomePage(ctk.CTkFrame):
-    """
-    HomePage is a presentation-only frame.
-    It shows branding, product value, and entry points to authentication.
-
-    It does NOT:
-    - control navigation
-    - know about the SkyVault app
-    - contain business logic
-    """
 
     def __init__(
         self,
@@ -25,10 +16,6 @@ class HomePage(ctk.CTkFrame):
 
         # Callback injected by the application controller
         self.on_authenticate = on_authenticate
-
-        # --------------------------------------------------
-        # Root layout (required for fullscreen scaling)
-        # --------------------------------------------------
 
         # Allow this frame to expand fully
         self.grid_rowconfigure(0, weight=1)
@@ -47,10 +34,7 @@ class HomePage(ctk.CTkFrame):
         # Single-column layout, centered
         root.grid_columnconfigure(0, weight=1)
 
-        # ==================================================
         # HERO SECTION (Top branding & CTA)
-        # ==================================================
-
         hero = ctk.CTkFrame(root, fg_color="transparent")
         hero.grid(row=0, column=0, sticky="ew", pady=(0, 40))
         hero.grid_columnconfigure(0, weight=1)
@@ -74,9 +58,7 @@ class HomePage(ctk.CTkFrame):
             justify="center"
         ).grid(row=1, column=0, pady=(0, 30))
 
-        # -----------------
         # Call-to-action buttons
-        # -----------------
 
         cta_row = ctk.CTkFrame(hero, fg_color="transparent")
         cta_row.grid(row=2, column=0)
@@ -101,9 +83,7 @@ class HomePage(ctk.CTkFrame):
             border_width=2
         ).grid(row=0, column=1, padx=10)
 
-        # ==================================================
         # FEATURES SECTION (3-column layout)
-        # ==================================================
 
         features = ctk.CTkFrame(root)
         features.grid(row=1, column=0, sticky="ew", pady=(0, 40))
@@ -136,9 +116,7 @@ class HomePage(ctk.CTkFrame):
             text="Optimized transfers and high availability."
         )
 
-        # ==================================================
         # FOOTER (low visual priority)
-        # ==================================================
 
         footer = ctk.CTkFrame(root, fg_color="transparent")
         footer.grid(row=2, column=0, sticky="ew")
@@ -151,14 +129,11 @@ class HomePage(ctk.CTkFrame):
             text_color=("gray40", "gray60")
         ).grid(row=0, column=0, pady=10)
 
-    # --------------------------------------------------
     # Feature card factory
-    # --------------------------------------------------
 
     def _feature(self, parent, col, icon, title, text):
         """
         Creates a reusable feature card.
-        Encapsulation prevents layout duplication.
         """
 
         frame = ctk.CTkFrame(parent, corner_radius=12)
@@ -194,9 +169,7 @@ class HomePage(ctk.CTkFrame):
             justify="center"
         ).pack(padx=20, pady=(0, 20))
 
-    # --------------------------------------------------
     # Action handlers
-    # --------------------------------------------------
 
     def _go_auth(self):
         """

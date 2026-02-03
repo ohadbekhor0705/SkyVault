@@ -5,12 +5,13 @@ from HomePage import HomePage
 
 ctk.set_appearance_mode("dark")
 class App(ctk.CTk):
-    def __init__(self, client_bl: CClientBL):
+    def __init__(self): 
+        self.client_bl: CClientBL = CClientBL()
         super().__init__()
         print("Initializing App")
         self.title("SkyVault")
         self.minsize(1300,750)
-        self.client_bl: CClientBL = client_bl
+       
         self.frames: dict[str, ctk.CTkFrame] = {}
         try:
             self.state("zoomed")
@@ -43,7 +44,5 @@ class App(ctk.CTk):
 
         self.home.tkraise()
 if __name__ == "__main__": 
-    client_bl = CClientBL()
-    client_bl.process_handshake()
-    app = App(client_bl)
+    app = App()
     app.mainloop()

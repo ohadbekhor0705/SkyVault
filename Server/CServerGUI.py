@@ -13,10 +13,6 @@ class CServerGUI(CServerBL):
         self._portLabel = None
         self.serverSwitch = None
         self.height, self.width = 750, 1300
-        ###Treeview Customization (theme colors are selected)
-        self.bg_color: str = self.master._apply_appearance_mode(CTk.ThemeManager.theme["CTkFrame"]["fg_color"])
-        self.text_color: str = self.master._apply_appearance_mode(CTk.ThemeManager.theme["CTkLabel"]["text_color"])
-        self.selected_color: str = self.master._apply_appearance_mode(CTk.ThemeManager.theme["CTkButton"]["fg_color"])
         self.create_ui()   
     
     def create_ui(self) -> None:
@@ -49,4 +45,4 @@ class CServerGUI(CServerBL):
 if __name__ == "__main__":
     App = CServerGUI()
     App.run()
-    exit()
+    App._stop_server()

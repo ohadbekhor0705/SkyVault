@@ -34,7 +34,6 @@ class MainFrame(ctk.CTkScrollableFrame):
             command=self._on_click_Upload
         )
         self.upload_button.grid(row=1, column=0, sticky="nsew")
-
         if client_bl:
             for i, f in enumerate(client_bl.files):
                 row = FileRow(
@@ -43,19 +42,20 @@ class MainFrame(ctk.CTkScrollableFrame):
                     f["filename"],
                     f["size"],
                     f["modified"],
-                    on_delete=self.make_delete_callback(f["file_id"], None),  # placeholder row, will fix below
+                    f["file_hash"],
+                    on_delete=self.make_delete_callback(f["file_id"],f["size"] , None),  # placeholder row, will fix below
                     on_save=self.make_save_callback(f["file_id"], f["filename"]),
                     on_share=None
                 )
 
                 # Fix the row reference in the callback after row is created
-                row.on_delete = self.make_delete_callback(f["file_id"], row)
+                row.on_delete = self.make_delete_callback(f["file_id"],f["size"], row)
 
                 row.grid(row=i+2, column=0, sticky="nsew", padx=5, pady=2)
                 self.file_rows.append(row)
     def _on_click_Upload(self) -> None:
         # if other tasks are running then prevent from user from sending other network requests
-        if self.client_bl._operation_thread  and self.client_bl._operation_thread.is_alive():
+        if self.client_bl.work_event.is_set():
             print("Another task is running!")
             return 
         filename: str = fd.askopenfilename(
@@ -79,11 +79,15 @@ class MainFrame(ctk.CTkScrollableFrame):
         else:
             self.header.configure(text="File not found! Please select a file again.")
             
-    def make_delete_callback(self,file_id: str, row: FileRow) -> Callable[[], None]:
+    def make_delete_callback(self,file_id: str, size: int, row: FileRow) -> Callable[[], None]:
         # Define a wrapper for delete to remove row from UI
         def callback():
+            if self.client_bl.work_event.is_set():
+                return
+            self.client_bl.work_event.set()
+            threading.Thread(target=self.animate).start()
             # Call business logic
-            self.client_bl.delete_files([file_id],header_field=self.header, file_rows=self.file_rows)
+            self.client_bl.delete_file(file_id, size, header_field=self.header, file_rows=self.file_rows)
             # Remove row from UI
             row.grid_forget()
             # Optionally remove from list
@@ -91,13 +95,18 @@ class MainFrame(ctk.CTkScrollableFrame):
         return lambda: threading.Thread(target=callback).start()
     def make_save_callback(self,file_id: str, filename: str):
         def callback():
+            if self.client_bl.work_event.is_set():
+                return
             self.client_bl.work_event.set()
             threading.Thread(target=self.animate).start()
             self.client_bl.ReceiveFile(file_id,filename, header_field=self.header)
         return lambda: threading.Thread(target=callback).start()
     def make_share_callback(self, file_id: str):
         def callback():
-            ...
+            if self.client_bl.work_event.is_set():
+                return
+            threading.Thread(target=self.animate).start()
+            self.client_bl.cre
         return None
         
     def animate(self):

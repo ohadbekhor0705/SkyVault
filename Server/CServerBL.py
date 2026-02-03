@@ -4,7 +4,7 @@ import threading  # Import threading for concurrent connections
 import json  # Import json for message serialization
 import os  # Import os for file system operations
 from typing import Callable, List, Tuple, Dict
-
+from flask import Flask, Response
 from protocol2 import *  # Import protocol definitions
 import bcrypt  # Import bcrypt for password hashing
 import struct
@@ -16,45 +16,58 @@ from cryptography.hazmat.primitives import hashes
 import sqlite3
 from time import sleep
 
-DB = "./mydb.db"
 
 class CServerBL():
     def _create_tables(self):
-        with sqlite3.connect(DB) as conn:
-            cur = conn.cursor()
-            cur = conn.executescript(
-                    """
-                    CREATE TABLE IF NOT EXISTS users(
-                        user_id INTEGER PRIMARY KEY,
-                        username CHAR(255),
-                        password_hash BLOB,
-                        max_storage INT DEFAULT 1073741824,
-                        curr_storage INT DEFAULT 0,
-                        tries INT DEFAULT 0,
-                        disabled BOOLEAN DEFAULT 0
-                    );
-                    CREATE TABLE IF NOT EXISTS files(
-                    file_id CHAR(255) PRIMARY KEY,
-                    filename CHAR(255),
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.executescript("""
+                CREATE TABLE IF NOT EXISTS users(
+                    user_id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    password_hash BLOB,
+                    max_storage INTEGER DEFAULT 1073741824,
+                    curr_storage INTEGER DEFAULT 0,
+                    tries INTEGER DEFAULT 0,
+                    disabled INTEGER DEFAULT 0
+                );
+
+                CREATE TABLE IF NOT EXISTS files(
+                    file_id TEXT PRIMARY KEY,
+                    filename TEXT,
                     size INTEGER,
-                    modified INT,
+                    modified INTEGER,
                     user_id INTEGER,
-                    FOREIGN KEY (user_id) REFERENCES users(user_id)
-                    );
-                    """
+                    file_hash BLOB,
+                    FOREIGN KEY(user_id) REFERENCES users(user_id)
+                );
+            """
             )
+
+    def _register_routes(self) -> None:
+        @self.app.route("/view_file/<file_id>")
+        def view_file(file_id: str):
+
+            def generate():
+                with open(file_id+"encrypted","rb") as f:
+                    while (header := f.read(4)) and header != 0:
+                        yield file_fernet.decrypt(f.read(struct.unpack(FORMAT, header)[0]))
+            return Response(generate())
+            
+    def _run_flask(self):
+        self.app.run("0.0.0.0",80, user_reloader=False)
     def __init__(self) -> None:
+        self._api_thread: threading.Thread | None = None
         self._create_tables()
         self._ip: str = "0.0.0.0"  # Server IP address
         self._port: int = 5050  # Server port
-        self.server_socket: socket.socket | None = None  # Main server socket
+        self._server_socket: socket.socket | None = None  # Main server socket
         self.logger_box = None
         self.clientHandlers: list[ClientHandler] = []  # List of client handler threads
-        self.event = threading.Event()  # Event flag for server loop
-        self.main_thread: threading.Thread | None = None  # Main server thread
-        storage_folder_name = "./StorageFiles"  # Folder for storage
-        if not os.path.exists(storage_folder_name):  # Create folder if not exists
-            os.mkdir(storage_folder_name)
+        self._event = threading.Event()  # Event flag for server loop
+        _storage_folder_name = "./StorageFiles"  # Folder for storage
+        if not os.path.exists(_storage_folder_name):  # Create folder if not exists
+            os.mkdir(_storage_folder_name)
 
 
         self.private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -64,27 +77,29 @@ class CServerBL():
         self.pem_public = self.public_key.public_bytes(
         encoding=serialization.Encoding.PEM,
         format=serialization.PublicFormat.SubjectPublicKeyInfo)
+
+        self.app = Flask(__name__)
+        self._register_routes()
+
     # Start the server
-    def _start_server(self) ->  None:
+    def start_server(self) ->  None:
         FORMAT = "!I"
         """
         Start the TCP server and enter the accept loop.
-        Initializes and binds a TCP socket to self._ip and self._port, sets self.event,
+        Initializes and binds a TCP socket to self._ip and self._port, sets self._event,
         and begins listening for incoming client connections.
         """
-        #self.web_server = multiprocessing.Process(target=run)
         self.write_to_log(self)  # Log server start
-        #self.web_server.start()
         try:
+            self._api_thread = threading.Thread(target=self._run_flask, daemon=True)
             self.clientHandlers
-            self.event.set()  # Set event flag
-            #self.web_server.start()
-            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create socket
-            self.server_socket.bind((self._ip, self._port))  # Bind socket to IP and PORT
-            self.server_socket.listen(5)  # Listen for connections
+            self._event.set()  # Set event flag
+            self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create socket
+            self._server_socket.bind((self._ip, self._port))  # Bind socket to IP and PORT
+            self._server_socket.listen(5)  # Listen for connections
             self.write_to_log(f"[SERVER] is running at \nIP: {socket.gethostbyname(socket.gethostname())} \nPORT: {self._port}")
-            while self.event.is_set() and self.server_socket is not None:  # Main accept loop
-                client, address = self.server_socket.accept()  # Accept new client
+            while self._event.is_set() and self._server_socket is not None:  # Main accept loop
+                client, address = self._server_socket.accept()  # Accept new client
                 header = struct.pack(FORMAT, len(self.pem_public))
                 client.sendall(header + self.pem_public) # Sending public key to client
                 
@@ -96,7 +111,7 @@ class CServerBL():
                 f = fernet.Fernet(session_key)
                 self.write_to_log(client)
 
-                new_client_handler = ClientHandler(client, address, f, self.write_to_log, self.event)
+                new_client_handler = ClientHandler(client, address, f, self.write_to_log, self._event)
                 new_client_handler.start()
                 self.clientHandlers.append(new_client_handler)
 
@@ -104,12 +119,13 @@ class CServerBL():
             pass  # Ignore OS errors
         #except Exception as e:
         #    self.write_to_log(f"[ServerBL] Exception at start_server(): {e}")  # Log other exceptions
-    def _stop_server(self) -> None:
+    def stop_server(self) -> None:
         """Stopping the server
         """        
         self.write_to_log(f"Shuting down server...")  # Log stop
         try:
-            self.event.clear()  # Clear event flag
+            self._event.clear()  # Clear event flag
+            self._api_thread = None
             self.write_to_log(f"[ServerBL] cleared flag!")
             for client_handler in self.clientHandlers:
                 self.write_to_log(f"[SERVER] Disconnecting {client_handler}....")
@@ -118,19 +134,19 @@ class CServerBL():
                     client_handler.join()  # Wait for thread to finish
             self.clientHandlers = []  # Clear handler list
             
-            if self.server_socket:
+            if self._server_socket:
                 self.server_socket.close()  # Close server socket
                 self.server_socket = None
-            self.event.clear()
+            self._event.clear()
             self.main_thread = None  # Clear main thread
             self.write_to_log("[CServerBL] Closed server!")  # Log closed
         except Exception as e:
             self.write_to_log(f"[ServerBL] Exception at stop_server(): {e}")  # Log exceptions
-    def __repr__ (self) -> str:
-        return f"<Server(ip={self._ip}, port={self._port}, flag={self.event.is_set()}, {self.server_socket})>"
+    def __repr__ (self)  -> str:
+        return  f'{socket.gethostbyname(socket.gethostname())}:5050'
     def write_to_log(self, msg: Any) -> None:
         if self.logger_box:
-            self.logger_box.insert("end",f"{msg}\n")
+            self.logger_box.insert("end",msg+"\n")
         print(msg)
 class ClientHandler(threading.Thread):
     """
@@ -144,7 +160,7 @@ class ClientHandler(threading.Thread):
 
         Methods:
         run(): Main thread execution method that handles client communication
-        disconnect(): Closes client connection and cleanup
+        _disconnect(): Closes client connection and cleanup
         __repr__(): String representation of the client handler
         _get_message(): Getting Encryption message from client and doing Decryption.
         _send_message(): Sending Encryption message to client
@@ -169,24 +185,25 @@ class ClientHandler(threading.Thread):
         self.daemon = True
         self.write_to_log = write_to_log
         self._fernet: fernet.Fernet = f
-        self.event = event
+        self._event = event
         self.user_id: int = -1
         
         if not os.path.exists("./StorageFiles"):
             os.mkdir("./StorageFiles")
     # This code run for every client in a different thread
     def run(self) -> None:
-        self.db_conn = sqlite3.connect(DB)
+        self.db_conn = sqlite3.connect(DB_PATH)
 
         # Server functionality here
         self.write_to_log(f"[+] client connection! {self} from device: {socket.gethostname()}")
         self.write_to_log(f"[SERVER] {threading.active_count() - (1 if __name__ == "__main__"  else 2)} Are currently connected!")
         i = 1
-        while self.event.is_set():
+        while self._event.is_set():
             try:
                 json_string: str | None = self._get_message()
                 if json_string:
                     request: dict[str, Any] = json.loads(json_string)
+                    print(request)
                     response: dict[str, Any] | None = handle_client_request(request,self)
                     if response:
                         if response.get("cmd") == "!DIS":
@@ -195,7 +212,7 @@ class ClientHandler(threading.Thread):
                 else:  
                     break
             except ConnectionResetError:
-                self.write_to_log(" client was forced closed!")
+                self.write_to_log("client was forced closed!")
                 break
             except ConnectionAbortedError:
                 self.write_to_log("ClientHandler -> run()] client connection Aborted!")
@@ -209,12 +226,12 @@ class ClientHandler(threading.Thread):
         Return: json string (str) , if client disconnected then returns None
         """
         
-        self.write_to_log(f"Getting message from: {self}...")
-        header: bytes = self.client.recv(4)
+        self.write_to_log(f"Getting message from: {self}")
+        header: bytes = recv_exact(self.client, 4)
         if not header:
             raise ConnectionAbortedError()
         message_length: int = struct.unpack("!I",header)[0]
-        encrypted: bytes = self.client.recv(message_length)
+        encrypted: bytes = recv_exact(self.client ,message_length)
         return self._fernet.decrypt(encrypted).decode()
     def _send_message(self, data: dict[str,Any]):
         encrypted_data: bytes = self._fernet.encrypt(json.dumps(data).encode())
@@ -251,7 +268,7 @@ class ClientHandler(threading.Thread):
 if __name__ == "__main__":
     print("Press Ctrl + C to exit.")
     server = CServerBL()
-    server._start_server()
+    server.start_server()
     try:
         while True:
             sleep(1)

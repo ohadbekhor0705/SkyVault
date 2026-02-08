@@ -55,10 +55,11 @@ def getUser(login: dict | int) -> dict[str, Any] | None:
             values = cur.execute("SELECT * FROM users WHERE username == :username AND disabled = 0",login).fetchone()
             if not values:
                 return None
-            elif values[5] < 3:
-                cur.execute("UPDATE users SET tries = tries + 1 WHERE user_id = ?",(values[0],))
-            if not bcrypt.checkpw(login["password"].encode(),values[2]):
-                cur.execute("UPDATE users SET tries = tries + 1 WHERE username = :username",login)
+            elif not bcrypt.checkpw(login["password"].encode(),values[2]):
+                if values[5] < 3:
+                    cur.execute("UPDATE users SET tries = tries + 1 WHERE username = :username",login)
+                else:
+                    cur.execute("UPDATE users SET disabled = 1 WHERE username = := username",login)
                 return None
     return dict(zip(keys, values))
 def InsertUser(user: Dict[str,Any]) -> tuple[dict[str, Any], None] | tuple[dict[str, Any], int]:
@@ -88,7 +89,7 @@ def files_by_id(uid: int)   -> list[dict[str, Any]]:
     with sqlite3.connect("./mydb.db") as conn:
         cur = conn.cursor()
         files = cur.execute("SELECT * FROM files WHERE user_id = ?",(uid,)).fetchall()
-        keys = ["file_id", "filename", "size","modified", "user_id"]
+        keys: list[str] = ["file_id", "filename", "size","modified","file_hash" ,"user_id","share_link"]
         return [dict(zip(keys, file)) for file in files]
 def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
     """Uploading a file to cloud
@@ -122,7 +123,7 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
         print(f"file received from: {ClientHandler}.")
         cur: sqlite3.Cursor =  ClientHandler.db_conn.cursor()
         cur.execute("UPDATE users SET curr_storage = curr_storage + ? WHERE user_id = ? ", (payload["filesize"],ClientHandler.user_id))
-        cur.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?,?)",(file_id,payload["filename"],payload["filesize"], int(datetime.now().timestamp()), payload["hash"].encode(), ClientHandler.user_id))
+        cur.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?,?,?)",(file_id,payload["filename"],payload["filesize"], int(datetime.now().timestamp()), payload["hash"], ClientHandler.user_id, 0))
         ClientHandler.db_conn.commit()
 
     
@@ -192,11 +193,13 @@ def DeleteFile(file_id, ClientHandler)-> dict[str, Any]:
     except Exception as e:
         print(e)
         return {"status": False, "message": "An Error occurred when the server was trying to delete this file"}
-def createLink(file_id: str)-> dict[str, Any]:
-    try:
-        return {"status": True,"message": "Share link created!", "link": ""}
-    except:
-        return {"status": False,"message": "Couldn't Create share link."}
+def createLink(file_id: str, action: str, db: sqlite3.Connection)-> dict[str, Any]:
+    print(file_id, action)
+    value = 1 if action == "enable" else 0
+    cur = db.cursor()
+    cur.execute("UPDATE files SET share_link = ? WHERE file_id = ?",(value, file_id))
+    db.commit()
+    return {"status": True}
 def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> dict[str, Any] | None:
     """Handling clients requests
 
@@ -234,18 +237,55 @@ def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> di
             response = DeleteFile(payload["id"], ClientHandler)
         case "save":
             response = SendFile(payload["file_id"], ClientHandler)
-        case "createLink":
-            response = createLink(payload["file_id"], ClientHandler.db)
+        case "handlelink":
+            response = createLink(payload["file_id"],payload["action"], ClientHandler.db_conn)
         case _:
             response = {"status": False, "message": "Invalid command"}
     return response
 def recv_exact(sock: socket.socket, size: int) -> bytes:
     if size < 0:
         raise ValueError("size must be non negative")
+    if size == 0:
+        return b''
     data = bytearray()
+    
     while len(data) < size:
         packet: bytes = sock.recv(size - len(data))
         if not packet:
-            raise ConnectionError("Socket closed unexpectedly")
+            return b''
         data.extend(packet)
     return bytes(data)
+
+BROWSER_DISPLAYABLE_MIME_MAP = {
+    ".txt":  "text/plain; charset=utf-8",
+    ".py":   "text/plain; charset=utf-8",
+    ".js":   "text/javascript; charset=utf-8",
+    ".ts":   "text/javascript; charset=utf-8",
+    ".css":  "text/css; charset=utf-8",
+    ".md":   "text/plain; charset=utf-8",
+    ".log":  "text/plain; charset=utf-8",
+    ".csv":  "text/csv; charset=utf-8",
+    ".json": "application/json; charset=utf-8",
+    ".xml":  "application/xml; charset=utf-8",
+
+    ".html": "text/html; charset=utf-8",
+    ".htm":  "text/html; charset=utf-8",
+
+    ".png":  "image/png",
+    ".jpg":  "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif":  "image/gif",
+    ".webp": "image/webp",
+    ".svg":  "image/svg+xml",
+
+    ".mp3":  "audio/mpeg",
+    ".wav":  "audio/wav",
+    ".ogg":  "audio/ogg",
+    ".m4a":  "audio/mp4",
+
+    ".mp4":  "video/mp4",
+    ".webm": "video/webm",
+    ".ogv":  "video/ogg",
+
+    ".pdf":  "application/pdf",
+}

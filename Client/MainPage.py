@@ -18,7 +18,7 @@ class MainFrame(ctk.CTkScrollableFrame):
         self.frames = frames
         self.client_bl = client_bl 
         self.file_rows: list[FileRow] = [] # Keep track of rows for future access
-        # Allow this frame to expand fully
+        # Allow this frame to expand fully``
         self.grid_rowconfigure(0, weight=1)
         self.grid_columnconfigure(0, weight=1)
         self.header = ctk.CTkLabel(
@@ -43,13 +43,15 @@ class MainFrame(ctk.CTkScrollableFrame):
                     f["size"],
                     f["modified"],
                     f["file_hash"],
+                    bool(f["share_link"]),
                     on_delete=self.make_delete_callback(f["file_id"],f["size"] , None),  # placeholder row, will fix below
                     on_save=self.make_save_callback(f["file_id"], f["filename"]),
                     on_share=None
                 )
 
-                # Fix the row reference in the callback after row is created
+                # Fix the row references in the callback after row is created
                 row.on_delete = self.make_delete_callback(f["file_id"],f["size"], row)
+                row.on_share= self.make_share_callback(row)
 
                 row.grid(row=i+2, column=0, sticky="nsew", padx=5, pady=2)
                 self.file_rows.append(row)
@@ -101,13 +103,20 @@ class MainFrame(ctk.CTkScrollableFrame):
             threading.Thread(target=self.animate).start()
             self.client_bl.ReceiveFile(file_id,filename, header_field=self.header)
         return lambda: threading.Thread(target=callback).start()
-    def make_share_callback(self, file_id: str):
+    def make_share_callback(self,row: FileRow):
         def callback():
             if self.client_bl.work_event.is_set():
                 return
+            print(f"{row.check_var.get()=}")
+            action = "enable" if row.check_var.get() else "disable"
+            self.client_bl._send_message({"cmd": "handlelink", "action": action,"file_id": row.file_id})
+            response = self.client_bl._get_message()
+            if response["status"]:
+                row.check_var.set(not row.check_var.get())
+                row.share_link = row.check_var.get()
             threading.Thread(target=self.animate).start()
-            self.client_bl.cre
-        return None
+
+        return lambda: threading.Thread(target=callback).start()
         
     def animate(self):
         dots = [i*"." for i in range(7)]

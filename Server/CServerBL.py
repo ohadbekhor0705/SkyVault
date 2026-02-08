@@ -1,10 +1,11 @@
+from pathlib import Path
 from typing import Any
 import socket  # Import socket for networking
 import threading  # Import threading for concurrent connections
 import json  # Import json for message serialization
 import os  # Import os for file system operations
 from typing import Callable, List, Tuple, Dict
-from flask import Flask, Response
+from flask import Flask, Response, abort, stream_with_context
 from protocol2 import *  # Import protocol definitions
 import bcrypt  # Import bcrypt for password hashing
 import struct
@@ -37,8 +38,8 @@ class CServerBL():
                     filename TEXT,
                     size INTEGER,
                     modified INTEGER,
+                    file_hash TXT,
                     user_id INTEGER,
-                    file_hash BLOB,
                     FOREIGN KEY(user_id) REFERENCES users(user_id)
                 );
             """
@@ -47,15 +48,44 @@ class CServerBL():
     def _register_routes(self) -> None:
         @self.app.route("/view_file/<file_id>")
         def view_file(file_id: str):
+            with sqlite3.connect(DB_PATH) as conn:
+                cur = conn.cursor()
+                row = cur.execute(
+                    "SELECT filename FROM files WHERE file_id = ?",
+                    (file_id,)
+                ).fetchone()
+
+                if row is None:
+                    abort(404)
+
+                filename: str = row[0]
+                suffix = Path(filename).suffix.lower()  #  getting suffix
+
+            mime = BROWSER_DISPLAYABLE_MIME_MAP.get(suffix)
+
+            if mime is None:
+                mime = "application/octet-stream"
+                disposition = "attachment"
+            else:
+                disposition = "inline"
 
             def generate():
-                with open(file_id+"encrypted","rb") as f:
-                    while (header := f.read(4)) and header != 0:
-                        yield file_fernet.decrypt(f.read(struct.unpack(FORMAT, header)[0]))
-            return Response(generate())
-            
-    def _run_flask(self):
-        self.app.run("0.0.0.0",80, user_reloader=False)
+                with open(f"StorageFiles/{file_id}.encrypted", "rb") as f:
+                    while (header := f.read(4)):
+                        size = struct.unpack(">I", header)[0]
+                        chunk = f.read(size)
+                        yield file_fernet.decrypt(chunk)
+
+            return Response(
+                stream_with_context(generate()),
+                mimetype=mime,
+                headers={
+                    "Content-Disposition": disposition,
+                    "X-Content-Type-Options": "nosniff",
+                },
+            )           
+    def _run_flask(self) -> None:
+        self.app.run("0.0.0.0",80, use_reloader=False)
     def __init__(self) -> None:
         self._api_thread: threading.Thread | None = None
         self._create_tables()
@@ -92,6 +122,7 @@ class CServerBL():
         self.write_to_log(self)  # Log server start
         try:
             self._api_thread = threading.Thread(target=self._run_flask, daemon=True)
+            self._api_thread.start()
             self.clientHandlers
             self._event.set()  # Set event flag
             self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create socket
@@ -146,7 +177,7 @@ class CServerBL():
         return  f'{socket.gethostbyname(socket.gethostname())}:5050'
     def write_to_log(self, msg: Any) -> None:
         if self.logger_box:
-            self.logger_box.insert("end",msg+"\n")
+            self.logger_box.insert("end",f"{msg}\n")
         print(msg)
 class ClientHandler(threading.Thread):
     """
@@ -234,6 +265,7 @@ class ClientHandler(threading.Thread):
         encrypted: bytes = recv_exact(self.client ,message_length)
         return self._fernet.decrypt(encrypted).decode()
     def _send_message(self, data: dict[str,Any]):
+        print(data)
         encrypted_data: bytes = self._fernet.encrypt(json.dumps(data).encode())
         header: bytes = struct.pack(FORMAT,len(encrypted_data)) # calculating header
         self.write_to_log(f'[SERVER] sending to client...')

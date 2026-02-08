@@ -242,10 +242,13 @@ def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> di
 def recv_exact(sock: socket.socket, size: int) -> bytes:
     if size < 0:
         raise ValueError("size must be non negative")
+    if size == 0:
+        return b''
     data = bytearray()
+    
     while len(data) < size:
         packet: bytes = sock.recv(size - len(data))
         if not packet:
-            raise ConnectionError("Socket closed unexpectedly")
+            return b''
         data.extend(packet)
     return bytes(data)

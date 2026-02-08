@@ -35,7 +35,7 @@ class CClientBL():
         while True:
             try:
                 _client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-                _client_socket.connect(("172.16.5.48",5050))
+                _client_socket.connect(("localhost",5050))
                 self._conn = _client_socket
                 break
             except ConnectionRefusedError:
@@ -116,7 +116,8 @@ class CClientBL():
             self.work_event.clear()
             return
         file_hash = self._hash_file(file)
-        payload: dict[str, Any] = {"cmd": "upload","filename":  file.name.split("/")[-1],"filesize": file_size, "hash": file_hash.decode()}
+        print(file_hash)
+        payload: dict[str, Any] = {"cmd": "upload","filename":  file.name.split("/")[-1],"filesize": file_size, "hash": file_hash}
         self._send_message(payload) # sending a data into
 
         # sending file in chunks
@@ -140,7 +141,7 @@ class CClientBL():
                 file.name.split("/")[-1],
                 file_size,
                 datetime.now().strftime("%Y-%m-%d"),
-                hash = file_hash,
+                file_hash= file_hash,
                 on_delete=callbacks[0](response["file_id"],file_size,None),
                 on_save=callbacks[1](response["file_id"], file.name.split("/")[-1]),
                 on_share=callbacks[2],
@@ -150,14 +151,14 @@ class CClientBL():
             file_row.on_delete = callbacks[0](response["file_id"],file_size ,file_row)
             file_row.grid(row =last_row,column=0 , sticky="nsew", padx=5, pady=2) 
             kwargs["file_rows"].append(file_row)
-    def _hash_file(self, file: BinaryIO, algorithm = "sha256", return_to_start=True):
+    def _hash_file(self, file: BinaryIO, algorithm = "sha256", return_to_start=True) -> str:
         hasher = hashlib.new(algorithm)  
         BLOCKSIZE = io.DEFAULT_BUFFER_SIZE
         for chunk in iter(lambda: file.read(BLOCKSIZE),b''):
             hasher.update(chunk)
         if return_to_start:
             file.seek(0)
-        return hasher.digest()
+        return hasher.hexdigest()
     def delete_file(self,file_id: str,size:int ,**kwargs) -> dict[str, Any]:
         self.work_event.set()
         header = kwargs["header_field"]

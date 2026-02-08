@@ -146,7 +146,7 @@ class CServerBL():
         return  f'{socket.gethostbyname(socket.gethostname())}:5050'
     def write_to_log(self, msg: Any) -> None:
         if self.logger_box:
-            self.logger_box.insert("end",msg+"\n")
+            self.logger_box.insert("end",f"{msg}\n")
         print(msg)
 class ClientHandler(threading.Thread):
     """

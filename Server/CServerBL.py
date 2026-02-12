@@ -87,6 +87,7 @@ class CServerBL():
             )           
     def _run_flask(self) -> None:
         self.app.run("0.0.0.0",80, use_reloader=False)
+        
     def __init__(self) -> None:
         self._api_thread: threading.Thread | None = None
         self._create_tables()

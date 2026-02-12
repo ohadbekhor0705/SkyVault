@@ -109,11 +109,11 @@ class MainFrame(ctk.CTkScrollableFrame):
                 return
             print(f"{row.check_var.get()=}")
             action = "enable" if row.check_var.get() else "disable"
+            print(action)
             self.client_bl._send_message({"cmd": "handlelink", "action": action,"file_id": row.file_id})
             response = self.client_bl._get_message()
             if response["status"]:
-                row.check_var.set(not row.check_var.get())
-                row.share_link = row.check_var.get()
+                row.share_link = not row.check_var.get()
             threading.Thread(target=self.animate).start()
 
         return lambda: threading.Thread(target=callback).start()

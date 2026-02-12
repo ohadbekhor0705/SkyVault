@@ -43,7 +43,7 @@ class FileRow(ctk.CTkFrame):
         self.name_label = ctk.CTkLabel(self, text=file_name, anchor="w")
         self.size_label = ctk.CTkLabel(self, text=file_size, anchor="e")
         self.date_label = ctk.CTkLabel(self, text=date_modified, anchor="w")
-        self.link_checkbox = ctk.CTkCheckBox(self, command=self._handle_share, variable=self.check_var)
+        self.link_checkbox = ctk.CTkCheckBox(self, command=self._handle_share, variable=self.check_var, text="toggle link")
         self.menu_button = ctk.CTkButton(
             self,
             text="⋯",

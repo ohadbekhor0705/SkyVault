@@ -30,7 +30,7 @@ class CServerBL():
                     max_storage INTEGER DEFAULT 1073741824,
                     curr_storage INTEGER DEFAULT 0,
                     tries INTEGER DEFAULT 0,
-                    disabled INTEGER DEFAULT 0
+                    disabled BOOLEAN NOT NULL DEFAULT 0
                 );
 
                 CREATE TABLE IF NOT EXISTS files(
@@ -40,6 +40,7 @@ class CServerBL():
                     modified INTEGER,
                     file_hash TXT,
                     user_id INTEGER,
+                    share_link BOOLEAN NOT NULL DEFAULT 0,
                     FOREIGN KEY(user_id) REFERENCES users(user_id)
                 );
             """
@@ -51,7 +52,7 @@ class CServerBL():
             with sqlite3.connect(DB_PATH) as conn:
                 cur = conn.cursor()
                 row = cur.execute(
-                    "SELECT filename FROM files WHERE file_id = ?",
+                    "SELECT filename FROM files WHERE file_id = ? AND share_link = 1",
                     (file_id,)
                 ).fetchone()
 

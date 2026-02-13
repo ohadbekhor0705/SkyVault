@@ -2,7 +2,6 @@ import customtkinter as ctk
 import tkinter as tk
 from typing import Callable, Optional
 
-
 class FileRow(ctk.CTkFrame):
     def __init__(
         self,

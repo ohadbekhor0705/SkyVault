@@ -3,7 +3,7 @@ from CClientBL import CClientBL
 from AuthPage import AuthFrame
 from HomePage import HomePage
 
-ctk.set_appearance_mode("dark")
+ctk.set_appearance_mode("Light")
 class App(ctk.CTk):
     def __init__(self): 
         self.client_bl: CClientBL = CClientBL()

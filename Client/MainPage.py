@@ -6,6 +6,7 @@ import customtkinter as ctk
 from FileRow import FileRow
 import threading
 from tkinter import filedialog as fd
+import pyperclip
 class MainFrame(ctk.CTkScrollableFrame):
     def __init__(
         self,
@@ -114,6 +115,9 @@ class MainFrame(ctk.CTkScrollableFrame):
             response = self.client_bl._get_message()
             if response["status"]:
                 row.share_link = not row.check_var.get()
+                if action == "enable":
+                    pyperclip.copy(response["link"])
+            self.header.configure(text=response["message"])
             threading.Thread(target=self.animate).start()
 
         return lambda: threading.Thread(target=callback).start()

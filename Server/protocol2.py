@@ -199,7 +199,13 @@ def createLink(file_id: str, action: str, db: sqlite3.Connection)-> dict[str, An
     cur = db.cursor()
     cur.execute("UPDATE files SET share_link = ? WHERE file_id = ?",(value, file_id))
     db.commit()
-    return {"status": True}
+    res = {"status": True}
+    if bool(value):
+        res["message"] = "Linked Copy to clipboard!"
+        res["link"] = f'{socket.gethostbyname(socket.gethostname())}/view_file/{file_id}'
+    else:
+        res["message"] = "file linked has been disabled."
+    return res
 def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> dict[str, Any] | None:
     """Handling clients requests
 
@@ -257,35 +263,84 @@ def recv_exact(sock: socket.socket, size: int) -> bytes:
     return bytes(data)
 
 BROWSER_DISPLAYABLE_MIME_MAP = {
+    # Plain text / source
     ".txt":  "text/plain; charset=utf-8",
     ".py":   "text/plain; charset=utf-8",
     ".js":   "text/javascript; charset=utf-8",
+    ".mjs":  "text/javascript; charset=utf-8",
     ".ts":   "text/javascript; charset=utf-8",
+    ".tsx":  "text/javascript; charset=utf-8",
+    ".jsx":  "text/javascript; charset=utf-8",  
     ".css":  "text/css; charset=utf-8",
-    ".md":   "text/plain; charset=utf-8",
+    ".scss": "text/x-scss; charset=utf-8",
+    ".sass": "text/x-sass; charset=utf-8",
+    ".less": "text/css; charset=utf-8",
+    ".md":   "text/markdown; charset=utf-8",
     ".log":  "text/plain; charset=utf-8",
     ".csv":  "text/csv; charset=utf-8",
+    ".tsv":  "text/tab-separated-values; charset=utf-8",
+    ".yaml": "application/x-yaml; charset=utf-8",
+    ".yml":  "application/x-yaml; charset=utf-8",
     ".json": "application/json; charset=utf-8",
+    ".map":  "application/json; charset=utf-8",
     ".xml":  "application/xml; charset=utf-8",
+    ".rss":  "application/rss+xml; charset=utf-8",
+    ".atom": "application/atom+xml; charset=utf-8",
 
+    # HTML
     ".html": "text/html; charset=utf-8",
     ".htm":  "text/html; charset=utf-8",
 
+    # Images
     ".png":  "image/png",
     ".jpg":  "image/jpeg",
     ".jpeg": "image/jpeg",
     ".gif":  "image/gif",
     ".webp": "image/webp",
     ".svg":  "image/svg+xml",
+    ".bmp":  "image/bmp",
+    ".ico":  "image/x-icon",
+    ".avif": "image/avif",
+    ".tiff": "image/tiff",
+    ".tif":  "image/tiff",
 
+    # Audio
     ".mp3":  "audio/mpeg",
     ".wav":  "audio/wav",
     ".ogg":  "audio/ogg",
+    ".oga":  "audio/ogg",
     ".m4a":  "audio/mp4",
+    ".aac":  "audio/aac",
+    ".flac": "audio/flac",
 
+    # Video
     ".mp4":  "video/mp4",
     ".webm": "video/webm",
     ".ogv":  "video/ogg",
+    ".mov":  "video/quicktime",
+    ".mkv":  "video/x-matroska",
 
+    # Documents
     ".pdf":  "application/pdf",
+    ".wasm": "application/wasm",
+    ".doc":  "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".xls":  "application/vnd.ms-excel",
+    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ".ppt":  "application/vnd.ms-powerpoint",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+
+    # Fonts
+    ".woff":  "font/woff",
+    ".woff2": "font/woff2",
+    ".ttf":   "font/ttf",
+    ".otf":   "font/otf",
+    ".eot":   "application/vnd.ms-fontobject",
+
+    # Archives (some browsers may download instead of render)
+    ".zip":  "application/zip",
+    ".tar":  "application/x-tar",
+    ".gz":   "application/gzip",
+    ".rar":  "application/vnd.rar",
+    ".7z":   "application/x-7z-compressed",
 }

@@ -109,7 +109,6 @@ class CClientBL():
         header_field: CTkLabel =  kwargs["header_field"]
         parent: CTkScrollableFrame = kwargs["parent"]
         file_size: int = os.path.getsize(file.name) # file size in bytes.
-
         # if user doesn't have storage then display appropriate message
         if file_size + self.current_storage  > self.max_storage:
             header_field.configure(text= "You dont't have enough storage to upload this file")

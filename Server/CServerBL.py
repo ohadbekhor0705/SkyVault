@@ -229,7 +229,7 @@ class ClientHandler(threading.Thread):
 
         # Server functionality here
         self.write_to_log(f"[+] client connection! {self} from device: {socket.gethostname()}")
-        self.write_to_log(f"[SERVER] {threading.active_count() - (1 if __name__ == "__main__"  else 2)} Are currently connected!")
+        self.write_to_log(f"[SERVER] {threading.active_count() - 2} Are currently connected!")
         i = 1
         while self._event.is_set():
             try:

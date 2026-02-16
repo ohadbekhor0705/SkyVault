@@ -117,6 +117,8 @@ class MainFrame(ctk.CTkScrollableFrame):
                 row.share_link = not row.check_var.get()
                 if action == "enable":
                     pyperclip.copy(response["link"])
+            else:
+                row.check_var.set(not row.check_var.get())
             self.header.configure(text=response["message"])
             threading.Thread(target=self.animate).start()
 

@@ -108,6 +108,7 @@ class CClientBL():
         global FORMAT
         header_field: CTkLabel =  kwargs["header_field"]
         parent: CTkScrollableFrame = kwargs["parent"]
+        bar = kwargs["bar"]
         file_size: int = os.path.getsize(file.name) # file size in bytes.
         # if user doesn't have storage then display appropriate message
         if file_size + self.current_storage  > self.max_storage:
@@ -131,7 +132,8 @@ class CClientBL():
         self.work_event.clear() # clearing working flag
         if response["status"]:
             self.files.append({"file_id": response["file_id"] ,"filename": payload["filename"], "filesize": file_size})
-            self.current_storage += file_size 
+            self.current_storage += file_size
+            bar.set(self.current_storage/self.max_storage)
             header_field.configure(text=response["message"])
             last_row = parent.grid_size()[1]  # next empty row
             file_row = FileRow(
@@ -150,7 +152,7 @@ class CClientBL():
             # Fix the row references in the callback after row is created
             file_row.on_delete = callbacks[0](response["file_id"],file_size ,file_row)
             file_row.on_share = callbacks[2](file_row)
-            file_row.grid(row =last_row,column=0 , sticky="nsew", padx=5, pady=2) 
+            file_row.grid(row =last_row,column=0 , sticky="ew", padx=12, pady=6) 
             kwargs["file_rows"].append(file_row)
     def _hash_file(self, file: BinaryIO, algorithm = "sha256", return_to_start=True) -> str:
         hasher = hashlib.new(algorithm)  
@@ -161,16 +163,20 @@ class CClientBL():
             file.seek(0)
         return hasher.hexdigest()
     def delete_file(self,file_id: str,size:int ,**kwargs) -> dict[str, Any]:
+        print(size,self.current_storage)
         self.work_event.set()
         header = kwargs["header_field"]
-
+        bar = kwargs["bar"]
         payload = {"cmd": "delete", "id": file_id}
         self._send_message(payload)
         response = self._get_message()
+        print(response)
         if response["status"]:
             self.current_storage -= size
+            print(self.current_storage)
+            bar.set(self.current_storage/self.max_storage)
         self.work_event.clear()
-    def ReceiveFile(self, file_id:str, filename:str, **kwargs) -> None:
+    def ReceiveFile(self, file_id:str, filename:str,save_path: str, **kwargs) -> None:
         self.work_event.set()
         header_field: CTkLabel =  kwargs["header_field"]
         self._send_message({"cmd": "save", "file_id": file_id})
@@ -178,11 +184,11 @@ class CClientBL():
             save_directory = "./saved"
             if not os.path.exists(save_directory):
                 os.makedirs(save_directory)
-            with open(f"./{save_directory}/{filename}","wb") as f:
+            with open(f"{save_path}/{filename}","wb") as f:
                 while True:
                     header: int = struct.unpack(FORMAT, self._recv_exact(4))[0]
                     if header == 0:
-                        header_field.configure(text=f"file saved on: '/saved_files/{filename}'")
+                        header_field.configure(text=f"file saved on: '/{save_path}/{filename}'")
                         self.work_event.clear()
                         break
                     decrypted: bytes = self.fernet.decrypt(self._recv_exact(header))

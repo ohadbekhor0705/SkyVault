@@ -27,33 +27,32 @@ class FileRow(ctk.CTkFrame):
         self.share_link = share_link
 
         self.default_fg = self.cget("fg_color")
-        self.hover_fg = ("#2b2b2b", "#3a3a3a")
+        self.hover_fg = ("#cfcfcf", "#3a3a3a")
         self.check_var: ctk.BooleanVar = ctk.BooleanVar(value=share_link)
 
-        # Grid layout (column weights for alignment)
-        self.grid_columnconfigure(0, weight=4)  # Name column stretches
-        self.grid_columnconfigure(1, weight=1)  # Size column
-        self.grid_columnconfigure(2, weight=2)  # Date column
-        self.grid_columnconfigure(3, weight=0)  # Menu button
-        self.grid_columnconfigure(4, weight=0)  # Checkbox
+        # Fixed Column Configuration for perfect alignment across rows
+        self.grid_columnconfigure(0, minsize=300)  # Name column 
+        self.grid_columnconfigure(1, minsize=100)  # Size column
+        self.grid_columnconfigure(2, minsize=150)  # Date column
+        self.grid_columnconfigure(3, weight=1)      # Spacer to push buttons right
+        self.grid_columnconfigure(4, weight=0)      # Menu button
+        self.grid_columnconfigure(5, weight=0)      # Checkbox
 
-        # Widgets
-        self.name_label = ctk.CTkLabel(self, text=file_name, anchor="w")
-        self.size_label = ctk.CTkLabel(self, text=file_size, anchor="e")
-        self.date_label = ctk.CTkLabel(self, text=date_modified, anchor="w")
-        self.link_checkbox = ctk.CTkCheckBox(
-            self, command=self._handle_share, variable=self.check_var, text="toggle link"
-        )
-        self.menu_button = ctk.CTkButton(
-            self, text="⋯", width=36, command=self._show_menu
-        )
+        # Widgets - set fg_color to transparent so they inherit the Frame's hover color
+        self.name_label = ctk.CTkLabel(self, text=file_name, anchor="w", fg_color="transparent")
+        self.size_label = ctk.CTkLabel(self, text=file_size, anchor="w", fg_color="transparent")
+        self.date_label = ctk.CTkLabel(self, text=str(date_modified), anchor="w", fg_color="transparent")
+        self.link_checkbox = ctk.CTkCheckBox(self, command=self._handle_share, variable=self.check_var, text="")
+        self.menu_button = ctk.CTkButton(self, text="⋯", width=36, command=self._show_menu)
 
-        # Grid placement with sticky
-        self.name_label.grid(row=0, column=0, padx=8, pady=6, sticky="ew")
-        self.size_label.grid(row=0, column=1, padx=8, pady=6, sticky="ew")
-        self.date_label.grid(row=0, column=2, padx=8, pady=6, sticky="ew")
-        self.menu_button.grid(row=0, column=3, padx=6, pady=6, sticky="e")
-        self.link_checkbox.grid(row=0, column=4, padx=6, pady=6, sticky="e")
+        # Grid placement with consistent sticky behavior
+        Padx = 12
+        Pady = 10
+        self.name_label.grid(row=0, column=0, padx=Padx, pady=Pady, sticky="w")
+        self.size_label.grid(row=0, column=1, padx=Padx, pady=Pady, sticky="w")
+        self.date_label.grid(row=0, column=2, padx=Padx, pady=Pady, sticky="w")
+        self.menu_button.grid(row=0, column=4, padx=Padx, pady=Pady, sticky="e")
+        self.link_checkbox.grid(row=0, column=5, padx=Padx, pady=Pady, sticky="e")
 
         # Context menu
         bg_color = "#2b2b2b"
@@ -96,7 +95,7 @@ class FileRow(ctk.CTkFrame):
         y = self.menu_button.winfo_rooty() + self.menu_button.winfo_height()
         self.menu.tk_popup(x, y)
 
-    # Keep all your original handlers exactly as-is
+    # Keep all original handlers exactly as-is
     def _handle_delete(self):
         if self.on_delete:
             self.on_delete()

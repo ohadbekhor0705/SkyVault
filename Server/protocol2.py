@@ -56,6 +56,7 @@ def getUser(login: dict | int) -> dict[str, Any] | None:
             if not values:
                 return None
             elif not bcrypt.checkpw(login["password"].encode(),values[2]):
+                
                 if values[5] < 3:
                     cur.execute("UPDATE users SET tries = tries + 1 WHERE username = :username",login)
                 else:

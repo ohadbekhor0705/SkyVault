@@ -45,4 +45,4 @@ class CServerGUI(CServerBL):
 if __name__ == "__main__":
     App = CServerGUI()
     App.run()
-    App._stop_server()
+    App.stop_server()

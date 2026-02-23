@@ -32,7 +32,6 @@ class CServerBL():
                     tries INTEGER DEFAULT 0,
                     disabled BOOLEAN NOT NULL DEFAULT 0
                 );
-
                 CREATE TABLE IF NOT EXISTS files(
                     file_id TEXT PRIMARY KEY,
                     filename TEXT,
@@ -150,7 +149,7 @@ class CServerBL():
 
         except OSError as e:
             pass  # Ignore OS errors
-        #except Exception as e:
+        #except Exception as e:9
         #    self.write_to_log(f"[ServerBL] Exception at start_server(): {e}")  # Log other exceptions
     def stop_server(self) -> None:
         """Stopping the server
@@ -173,6 +172,7 @@ class CServerBL():
             self._event.clear()
             self.main_thread = None  # Clear main thread
             self.write_to_log("[CServerBL] Closed server!")  # Log closed
+            self._api_thread = None
         except Exception as e:
             self.write_to_log(f"[ServerBL] Exception at stop_server(): {e}")  # Log exceptions
     def __repr__ (self)  -> str:
@@ -270,7 +270,6 @@ class ClientHandler(threading.Thread):
         print(data)
         encrypted_data: bytes = self._fernet.encrypt(json.dumps(data).encode())
         header: bytes = struct.pack(FORMAT,len(encrypted_data)) # calculating header
-        self.write_to_log(f'[SERVER] sending to client...')
         self.client.sendall(header + encrypted_data) # sending header with encrypted data
     def _disconnect(self) -> None:
         """

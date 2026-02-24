@@ -7,6 +7,7 @@ from FileRow import FileRow
 import threading
 from tkinter import filedialog as fd
 import pyperclip
+from datetime import datetime, date
 class MainFrame(ctk.CTkScrollableFrame):
     def __init__(
         self,
@@ -45,7 +46,7 @@ class MainFrame(ctk.CTkScrollableFrame):
                     f["file_id"],
                     f["filename"],
                     f["size"],
-                    f["modified"],
+                    str(datetime.fromtimestamp(f["modified"]).date()),
                     f["file_hash"],
                     bool(f["share_link"]),
                     on_delete=self.make_delete_callback(f["file_id"],f["size"] , None),  # placeholder row, will fix below

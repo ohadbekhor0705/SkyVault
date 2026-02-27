@@ -53,7 +53,7 @@ class FileRow(ctk.CTkFrame):
         # Grid placement with consistent sticky behavior
         Padx = 12
         Pady = 10
-        self.name_entry.grid(row=0, column=0, padx=Padx, pady=Pady, sticky="w")
+        self.name_entry.grid(row=0, column=0, padx=Padx, pady=Pady, sticky="we")
         self.size_label.grid(row=0, column=1, padx=Padx, pady=Pady, sticky="w")
         self.date_label.grid(row=0, column=2, padx=Padx, pady=Pady, sticky="w")
         self.menu_button.grid(row=0, column=4, padx=Padx, pady=Pady, sticky="e")
@@ -75,11 +75,12 @@ class FileRow(ctk.CTkFrame):
         )
 
         self.name_entry.bind("<Return>", self._on_send)
+        self.name_entry.bind("<Escape>", self._on_cancel)
 
         self.menu.add_command(label="💾 Save file", command=self._handle_save)
         self.menu.add_separator()
         self.menu.add_command(label="🗑️ Delete file", command=self._handle_delete)
-        self.menu.add_command(label="Rename file", command=self._on_edit)
+        self.menu.add_command(label="✎ Rename file", command=self._on_edit)
         # Hover bindings
         widgets = (self.name_entry, self.size_label, self.date_label, self.menu_button, self.link_checkbox)
         self._bind_hover(self)
@@ -129,8 +130,8 @@ class FileRow(ctk.CTkFrame):
         new_filename = self.name_entry.get().strip()
         if new_filename == "" or new_filename == self.filename or self.client_bl.work_event.is_set():
             if new_filename == "":
-                self._entry_field.delete(0, "end")
-                self._entry_field.insert(0, self.filename)
+                self.name_entry.delete(0, "end")
+                self.name_entry.insert(0, self.filename)
         else:
             self.client_bl._send_message({"cmd": "rename", "filename": new_filename, "file_id": self.file_id})
             response = self.client_bl._get_message()
@@ -138,6 +139,11 @@ class FileRow(ctk.CTkFrame):
             if response["status"]:
                 self.filename = new_filename
         self.name_entry.configure(state="disabled")
+    def _on_cancel(self, event=None):
+        self.name_entry.delete(0, "end")
+        self.name_entry.insert(0, self.filename)
+        self.name_entry.configure(state="disabled")
+
         
 
         

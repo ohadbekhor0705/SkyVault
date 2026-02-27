@@ -3,7 +3,7 @@ from CClientBL import CClientBL
 from AuthPage import AuthFrame
 from HomePage import HomePage
 
-ctk.set_appearance_mode("Dark")
+ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("./themes/rime.json")
 class App(ctk.CTk):
     def __init__(self): 

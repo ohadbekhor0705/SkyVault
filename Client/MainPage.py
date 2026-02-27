@@ -49,6 +49,7 @@ class MainFrame(ctk.CTkScrollableFrame):
                     str(datetime.fromtimestamp(f["modified"]).date()),
                     f["file_hash"],
                     bool(f["share_link"]),
+                    self.client_bl, 
                     on_delete=self.make_delete_callback(f["file_id"],f["size"] , None),  # placeholder row, will fix below
                     on_save=self.make_save_callback(f["file_id"], f["filename"]),
                     on_share=None
@@ -86,7 +87,6 @@ class MainFrame(ctk.CTkScrollableFrame):
             self.client_bl._operation_thread.start()
         else:
             self.header.configure(text="File not found! Please select a file again.")
-            
     def make_delete_callback(self,file_id: str, size: int, row: FileRow) -> Callable[[], None]:
         # Define a wrapper for delete to remove row from UI
         def callback():
@@ -134,8 +134,7 @@ class MainFrame(ctk.CTkScrollableFrame):
             self.header.configure(text=response["message"])
             threading.Thread(target=self.animate).start()
 
-        return lambda: threading.Thread(target=callback).start()
-        
+        return lambda: threading.Thread(target=callback).start()   
     def animate(self):
         dots = [i*"." for i in range(7)]
         for c in itertools.cycle(dots):

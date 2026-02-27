@@ -207,6 +207,14 @@ def createLink(file_id: str, action: str, db: sqlite3.Connection)-> dict[str, An
     else:
         res["message"] = "file linked has been disabled."
     return res
+def rename_file(new_filename: str, file_id: str, db:sqlite3.Connection):
+    print(file_id)
+    cur = db.cursor()
+    cur.execute("UPDATE files SET filename = ? WHERE file_id = ?",(new_filename, file_id))
+    db.commit()
+    return {"status": True}
+    # except sqlite3.DatabaseError:
+    #     return {"status": False}
 def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> dict[str, Any] | None:
     """Handling clients requests
 
@@ -246,6 +254,8 @@ def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> di
             response = SendFile(payload["file_id"], ClientHandler)
         case "handlelink":
             response = createLink(payload["file_id"],payload["action"], ClientHandler.db_conn)
+        case "rename":
+            response = rename_file(payload["filename"], payload["file_id"], ClientHandler.db_conn)
         case _:
             response = {"status": False, "message": "Invalid command"}
     return response
@@ -255,14 +265,12 @@ def recv_exact(sock: socket.socket, size: int) -> bytes:
     if size == 0:
         return b''
     data = bytearray()
-    
     while len(data) < size:
         packet: bytes = sock.recv(size - len(data))
         if not packet:
             return b''
         data.extend(packet)
     return bytes(data)
-
 BROWSER_DISPLAYABLE_MIME_MAP = {
     # Plain text / source
     ".txt":  "text/plain; charset=utf-8",

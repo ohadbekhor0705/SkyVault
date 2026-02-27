@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from typing import Callable, Optional
-
+#from CClientBL import CClientBL
 class FileRow(ctk.CTkFrame):
     def __init__(
         self,
@@ -12,6 +12,7 @@ class FileRow(ctk.CTkFrame):
         date_modified: str,
         file_hash: bytes,
         share_link: bool,
+        client_bl,
         on_delete: Optional[Callable[[str], None]] = None,
         on_save: Optional[Callable[[str], None]] = None,
         on_share: Optional[Callable[[str], None]] = None,
@@ -39,7 +40,8 @@ class FileRow(ctk.CTkFrame):
         self.grid_columnconfigure(5, weight=0)      # Checkbox
 
         # Widgets - set fg_color to transparent so they inherit the Frame's hover color
-        self.name_label = ctk.CTkLabel(self, text=file_name, anchor="w", fg_color="transparent")
+        #self.name_label = ctk.CTkLabel(self, text=file_name, anchor="w", fg_color="transparent")
+        self.name_label = FilenameField(self, file_name, file_id, client_bl)
         self.size_label = ctk.CTkLabel(self, text=file_size, anchor="w", fg_color="transparent")
         self.date_label = ctk.CTkLabel(self, text=str(date_modified), anchor="w", fg_color="transparent")
         self.link_checkbox = ctk.CTkCheckBox(self, command=self._handle_share, variable=self.check_var, text="")
@@ -107,3 +109,51 @@ class FileRow(ctk.CTkFrame):
     def _handle_share(self):
         if self.on_share:
             self.on_share()
+
+
+class FilenameField(ctk.CTkFrame):
+    def __init__(self, master, filename: str,file_id: str, client_bl,**kwargs):
+        super().__init__(master, **kwargs)
+
+        self.client_bl = client_bl
+        self.file_id = file_id
+        self.filename = filename
+        self.root = master
+
+        self.grid_columnconfigure(0, minsize=250, weight=1) 
+        self.grid_columnconfigure(1, minsize=50, weight=1) 
+        self._entry_field = ctk.CTkEntry(self, font=ctk.CTkFont("Arial", 14))
+        self._entry_field.bind("<Return>", self._on_send)
+        self._entry_field.insert(0, filename)
+        self._entry_field.configure(state="disabled")
+        self.edit_button = ctk.CTkButton(self, text="✏️", command=self._on_edit, font=ctk.CTkFont("Arial", 12,"bold"), width=10)
+
+        self._entry_field.grid(row=0,column=0,sticky="ew")
+        self.edit_button.grid(row=0,column=1, sticky="e")
+        
+       
+
+    def _on_edit(self):
+        self._entry_field.configure(state="normal")
+        self.edit_button.configure(state="disabled")
+       
+        self.root.focus()
+        
+        
+    def _on_send(self, event):
+        new_filename = self._entry_field.get().strip()
+        if new_filename == "" or new_filename == self.filename or self.client_bl.work_event.is_set():
+            if new_filename == "":
+                self._entry_field.delete(0, "end")
+                self._entry_field.insert(0, self.filename)
+        else:
+            self.client_bl._send_message({"cmd": "rename", "filename": new_filename, "file_id": self.file_id})
+            response = self.client_bl._get_message()
+            print(response)
+            if response["status"]:
+                self.filename = new_filename
+        self.edit_button.configure(state="active")
+        self._entry_field.configure(state="disabled")
+        self.root.focus()
+        
+        

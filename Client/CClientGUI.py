@@ -38,7 +38,7 @@ class App(ctk.CTk):
             frames=self.frames,
             client_bl = self.client_bl
         )
-        self.frames["Home"] = self.home        
+        self.frames["Home"] = self.home
         self.frames["Auth"] = self.auth
         for page in (self.home, self.auth):
             page.place(relx=0, rely=0, relwidth=1, relheight=1)

@@ -20,7 +20,6 @@ CHUNK_SIZE = 1024 * 64
 FORMAT = "!I"
 class CClientBL():
     def __init__(self) -> None:
-        
         self._conn: socket.socket | None = None
         self.connection_event = threading.Event()
         self._fernet: fernet.Fernet
@@ -144,6 +143,7 @@ class CClientBL():
                 datetime.now().strftime("%Y-%m-%d"),
                 file_hash,
                 False,
+                self,
                 on_delete=callbacks[0](response["file_id"],file_size,None),
                 on_save=callbacks[1](response["file_id"], file.name.split("/")[-1]),
                 on_share=None,

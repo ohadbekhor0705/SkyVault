@@ -19,8 +19,10 @@ class FileRow(ctk.CTkFrame):
         **kwargs
     ):
         super().__init__(master, **kwargs)
-
+        self.client_bl = client_bl
+        self.filename = file_name
         self.file_id = file_id
+
         self.on_delete = on_delete
         self.on_save = on_save
         self.on_share = on_share
@@ -40,8 +42,9 @@ class FileRow(ctk.CTkFrame):
         self.grid_columnconfigure(5, weight=0)      # Checkbox
 
         # Widgets - set fg_color to transparent so they inherit the Frame's hover color
-        #self.name_label = ctk.CTkLabel(self, text=file_name, anchor="w", fg_color="transparent")
-        self.name_label = FilenameField(self, file_name, file_id, client_bl)
+        self.name_entry = ctk.CTkEntry(self)
+        self.name_entry.insert(0, file_name)
+        self.name_entry.configure(state="disabled")
         self.size_label = ctk.CTkLabel(self, text=file_size, anchor="w", fg_color="transparent")
         self.date_label = ctk.CTkLabel(self, text=str(date_modified), anchor="w", fg_color="transparent")
         self.link_checkbox = ctk.CTkCheckBox(self, command=self._handle_share, variable=self.check_var, text="")
@@ -50,7 +53,7 @@ class FileRow(ctk.CTkFrame):
         # Grid placement with consistent sticky behavior
         Padx = 12
         Pady = 10
-        self.name_label.grid(row=0, column=0, padx=Padx, pady=Pady, sticky="w")
+        self.name_entry.grid(row=0, column=0, padx=Padx, pady=Pady, sticky="w")
         self.size_label.grid(row=0, column=1, padx=Padx, pady=Pady, sticky="w")
         self.date_label.grid(row=0, column=2, padx=Padx, pady=Pady, sticky="w")
         self.menu_button.grid(row=0, column=4, padx=Padx, pady=Pady, sticky="e")
@@ -70,12 +73,15 @@ class FileRow(ctk.CTkFrame):
             bd=0,
             font=ctk.CTkFont(size=20)
         )
+
+        self.name_entry.bind("<Return>", self._on_send)
+
         self.menu.add_command(label="💾 Save file", command=self._handle_save)
         self.menu.add_separator()
         self.menu.add_command(label="🗑️ Delete file", command=self._handle_delete)
-
+        self.menu.add_command(label="Rename file", command=self._on_edit)
         # Hover bindings
-        widgets = (self.name_label, self.size_label, self.date_label, self.menu_button, self.link_checkbox)
+        widgets = (self.name_entry, self.size_label, self.date_label, self.menu_button, self.link_checkbox)
         self._bind_hover(self)
         for w in widgets:
             self._bind_hover(w)
@@ -111,37 +117,16 @@ class FileRow(ctk.CTkFrame):
             self.on_share()
 
 
-class FilenameField(ctk.CTkFrame):
-    def __init__(self, master, filename: str,file_id: str, client_bl,**kwargs):
-        super().__init__(master, **kwargs)
-
-        self.client_bl = client_bl
-        self.file_id = file_id
-        self.filename = filename
-        self.root = master
-
-        self.grid_columnconfigure(0, minsize=250, weight=1) 
-        self.grid_columnconfigure(1, minsize=50, weight=1) 
-        self._entry_field = ctk.CTkEntry(self, font=ctk.CTkFont("Arial", 14))
-        self._entry_field.bind("<Return>", self._on_send)
-        self._entry_field.insert(0, filename)
-        self._entry_field.configure(state="disabled")
-        self.edit_button = ctk.CTkButton(self, text="✏️", command=self._on_edit, font=ctk.CTkFont("Arial", 12,"bold"), width=10)
-
-        self._entry_field.grid(row=0,column=0,sticky="ew")
-        self.edit_button.grid(row=0,column=1, sticky="e")
-        
-       
-
     def _on_edit(self):
-        self._entry_field.configure(state="normal")
-        self.edit_button.configure(state="disabled")
-       
-        self.root.focus()
+        self.name_entry.configure(state="normal")
+        self.name_entry.focus()
+        end = self.name_entry.get().find(".")
+        self.name_entry.select_range(0, end)
+        self.name_entry.icursor(end)
         
         
     def _on_send(self, event):
-        new_filename = self._entry_field.get().strip()
+        new_filename = self.name_entry.get().strip()
         if new_filename == "" or new_filename == self.filename or self.client_bl.work_event.is_set():
             if new_filename == "":
                 self._entry_field.delete(0, "end")
@@ -152,8 +137,7 @@ class FilenameField(ctk.CTkFrame):
             print(response)
             if response["status"]:
                 self.filename = new_filename
-        self.edit_button.configure(state="active")
-        self._entry_field.configure(state="disabled")
-        self.root.focus()
+        self.name_entry.configure(state="disabled")
         
+
         

@@ -17,11 +17,13 @@ Notes: Please Use python v3.10+ (v3.13.x) is preferable
 
 Start server:
 ```bash
-python Server/CServerGUI.py
+cd Server
+python CServerGUI.py
 ```
 Start client:
 ```bash
-python Client/ClientGUI.py
+cd Client
+python ClientGUI.py
 ```
 
 ## Author

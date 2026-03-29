@@ -22,7 +22,7 @@ class CServerBL():
     def _create_tables(self):
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("PRAGMA foreign_keys = ON")
-            conn.executescript("""
+            conn.executescript(f"""
                 CREATE TABLE IF NOT EXISTS users(
                     user_id INTEGER PRIMARY KEY,
                     username TEXT,
@@ -39,9 +39,17 @@ class CServerBL():
                     modified INTEGER,
                     file_hash TXT,
                     user_id INTEGER,
+                    folder_id,
                     share_link BOOLEAN NOT NULL DEFAULT 0,
-                    FOREIGN KEY(user_id) REFERENCES users(user_id)
+                    FOREIGN KEY(user_id) REFERENCES users(user_id),
+                    FOREIGN KEY(folder_id) REFERENCES folder(folder_id)
                 );
+                CREATE TABLE IF NOT EXISTS folders(
+                    folder_id INTEGER PRIMARY KEY,
+                    folder_name TEXT,
+                    user_id INTEGER,
+                    FOREIGN KEY(user_id) REFERENCES users(user_id)
+                )
             """
             )
 
@@ -65,9 +73,9 @@ class CServerBL():
 
             if mime is None:
                 mime = "application/octet-stream"
-                disposition = "attachment"
+                disposition = f"attachment; filename={filename}"
             else:
-                disposition = "inline"
+                disposition = f"inline; filename={filename}"
 
             def generate():
                 with open(f"StorageFiles/{file_id}.encrypted", "rb") as f:
@@ -81,7 +89,7 @@ class CServerBL():
                 mimetype=mime,
                 headers={
                     "Content-Disposition": disposition,
-                    "X-Content-Type-Options": "nosniff",
+                    "X-Content-Type-Options": "nosniff"
                 },
             )           
     def _run_flask(self) -> None:

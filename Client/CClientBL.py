@@ -181,9 +181,6 @@ class CClientBL():
         header_field: CTkLabel =  kwargs["header_field"]
         self._send_message({"cmd": "save", "file_id": file_id})
         try:
-            save_directory = "./saved"
-            if not os.path.exists(save_directory):
-                os.makedirs(save_directory)
             with open(f"{save_path}/{filename}","wb") as f:
                 while True:
                     header: int = struct.unpack(FORMAT, self._recv_exact(4))[0]
@@ -201,34 +198,41 @@ class CClientBL():
     def _send_message(self, payload: str): ...
     @overload 
     def _send_message(self, payload: dict[str, Any]): ...
-    def _send_message(self, payload: dict[str,Any] | str) -> None:
+    def _send_message(self, payload: dict[str,Any] | str) -> bool:
         """sending Encrypted message to server
 
         Args:
             payload (dict[str,Any] | str): payload to send.
         """
-        print(f"sending {payload}...")
-        if isinstance(payload, str):
-            encrypted = self.fernet.encrypt(payload.encode())
-            Header = struct.pack(FORMAT,len(encrypted))
-            print(f"Header Length: {Header}")
-            self._conn.sendall(Header + encrypted)
-        elif isinstance(payload, dict):    
-            encrypted = self.fernet.encrypt(json.dumps(payload).encode())
-            Header = struct.pack(FORMAT,len(encrypted))
-            self._conn.sendall(Header + encrypted)
-        else:
-            raise ValueError(f"Type {type(payload)} isn't supported!")
-    def _get_message(self) -> dict[str, Any]:
+        try:
+            print(f"sending {payload}...")
+            if isinstance(payload, str):
+                encrypted = self.fernet.encrypt(payload.encode())
+                Header = struct.pack(FORMAT,len(encrypted))
+                print(f"Header Length: {Header}")
+                self._conn.sendall(Header + encrypted)
+            elif isinstance(payload, dict):    
+                encrypted = self.fernet.encrypt(json.dumps(payload).encode())
+                Header = struct.pack(FORMAT,len(encrypted))
+                self._conn.sendall(Header + encrypted)
+            else:
+                raise ValueError(f"Type {type(payload)} isn't supported!")
+        except (ConnectionResetError, ConnectionError):
+            return False
+        return True
+    def _get_message(self) -> dict[str, Any] | None:
         """Receiving response frm server
 
         Returns:
             dict[str, Any]: message from server.
         """ 
-        len_bytes: bytes = self._conn.recv(4)
-        encrypted_payload = self._conn.recv(struct.unpack(FORMAT,len_bytes)[0])
+        try:
+            len_bytes: bytes = self._conn.recv(4)
+            encrypted_payload = self._conn.recv(struct.unpack(FORMAT,len_bytes)[0])
         
-        return json.loads(self.fernet.decrypt(encrypted_payload).decode())
+            return json.loads(self.fernet.decrypt(encrypted_payload).decode())
+        except (ConnectionAbortedError, ConnectionResetError):
+            return None
     def _recv_exact(self, size: int) -> bytes:
         data = bytearray()
         while len(data) < size:

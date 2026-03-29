@@ -8,7 +8,7 @@ import threading
 from tkinter import filedialog as fd
 import pyperclip
 from datetime import datetime, date
-class MainFrame(ctk.CTkScrollableFrame):
+class MainFrame(ctk.CTkFrame):
     def __init__(
         self,
         master,
@@ -21,28 +21,47 @@ class MainFrame(ctk.CTkScrollableFrame):
         self.client_bl = client_bl 
         self.file_rows: list[FileRow] = [] # Keep track of rows for future access
         # Allow this frame to expand fully``
-        self.grid_rowconfigure(0, weight=1)
-        self.grid_columnconfigure(0, weight=1)
+
+
+        self.FolderFrames = ctk.CTkScrollableFrame(self)
+        self.files_frame = ctk.CTkScrollableFrame(self)
+        self.files_frame.columnconfigure(0, weight=1)
+
+
+        self.grid_columnconfigure(0, weight=0)
+        self.grid_columnconfigure(1, weight=1)
+        self.grid_rowconfigure(3, weight=1)
+
         self.header = ctk.CTkLabel(
             self,
             text="",
             font=ctk.CTkFont(size=20)
         )
-        self.header.grid(row=0, column=0, sticky="nsew", pady=3,padx=3)
+        self.header.grid(row=0, column=0, sticky="ew", pady=9,padx=9, columnspan=2)
         self.upload_button = ctk.CTkButton( # Upload button
             self,
             text="Upload File",
             font= ctk.CTkFont(size=20),
             command=self._on_click_Upload
         )
-        self.upload_button.grid(row=1, column=0, sticky="nsew",pady=3,padx=3)
+        self.create_folder_button = ctk.CTkButton(
+            self,
+            text="create folder",
+            font = ctk.CTkFont(size=20)
+        )
         self.progress_bar = ctk.CTkProgressBar(self)
-        self.progress_bar.grid(row=2, column=0, sticky="nsew",pady=5,padx=5)
+        self.progress_bar.grid(row=1, column=0, sticky="nsew",pady=9,padx=9, columnspan=2)
+        self.upload_button.grid(row=2, column=1, sticky="nsew",pady=9,padx=9)
+        self.create_folder_button.grid(row=2, column=0, sticky="nsew",pady=9,padx=9)
+        self.FolderFrames.grid(row=3, column=0, sticky="nsew", padx=7,pady=7)
+        for i in range(15):
+            ctk.CTkLabel(self.FolderFrames, text="Folder").grid(column=0,row=i)
+        self.files_frame.grid(row=3, column=1, sticky="nsew", padx=7,pady=7)
         if client_bl:
             self.progress_bar.set(self.client_bl.current_storage/self.client_bl.max_storage)
             for i, f in enumerate(client_bl.files):
                 row = FileRow(
-                    self,
+                    self.files_frame,
                     f["file_id"],
                     f["filename"],
                     f["size"],
@@ -59,7 +78,7 @@ class MainFrame(ctk.CTkScrollableFrame):
                 row.on_delete = self.make_delete_callback(f["file_id"],f["size"], row)
                 row.on_share= self.make_share_callback(row)
 
-                row.grid(row=i+3, column=0, sticky="ew", padx=12, pady=6)
+                row.grid(row=i+3, column=0, sticky="nsew", padx=12, pady=6)
                 self.file_rows.append(row)
     def _on_click_Upload(self) -> None:
         # if other tasks are running then prevent from user from sending other network requests
@@ -78,7 +97,7 @@ class MainFrame(ctk.CTkScrollableFrame):
                     f,
                     [self.make_delete_callback, self.make_save_callback, self.make_share_callback],
                     header_field=res_text,
-                    parent=self,
+                    parent=self.files_frame,
                     animate=self.animate,
                     file_rows = self.file_rows,
                     bar = self.progress_bar

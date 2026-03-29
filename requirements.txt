@@ -6,3 +6,4 @@ uuid6
 pyopenssl
 flask
 pyperclip
+pillow

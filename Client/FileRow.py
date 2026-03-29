@@ -1,7 +1,8 @@
 import customtkinter as ctk
 import tkinter as tk
-from typing import Callable, Optional
-#from CClientBL import CClientBL
+from typing import Callable, Optional, Any
+from PIL import Image
+import CTkMenuBar
 class FileRow(ctk.CTkFrame):
     def __init__(
         self,
@@ -42,7 +43,7 @@ class FileRow(ctk.CTkFrame):
         self.grid_columnconfigure(5, weight=0)      # Checkbox
 
         # Widgets - set fg_color to transparent so they inherit the Frame's hover color
-        self.name_entry = ctk.CTkEntry(self)
+        self.name_entry = ctk.CTkEntry(self, border_width=0, fg_color="transparent")
         self.name_entry.insert(0, file_name)
         self.name_entry.configure(state="disabled")
         self.size_label = ctk.CTkLabel(self, text=file_size, anchor="w", fg_color="transparent")
@@ -52,7 +53,7 @@ class FileRow(ctk.CTkFrame):
 
         # Grid placement with consistent sticky behavior
         Padx = 12
-        Pady = 10
+        Pady = 6
         self.name_entry.grid(row=0, column=0, padx=Padx, pady=Pady, sticky="we")
         self.size_label.grid(row=0, column=1, padx=Padx, pady=Pady, sticky="w")
         self.date_label.grid(row=0, column=2, padx=Padx, pady=Pady, sticky="w")
@@ -71,16 +72,19 @@ class FileRow(ctk.CTkFrame):
             activebackground=select_color,
             activeforeground=bg_color,
             bd=0,
-            font=ctk.CTkFont(size=20)
+            border=0,
+            borderwidth=0,
+            font=ctk.CTkFont("Arial", 16)
         )
 
         self.name_entry.bind("<Return>", self._on_send)
         self.name_entry.bind("<Escape>", self._on_cancel)
 
-        self.menu.add_command(label="💾 Save file", command=self._handle_save)
+
+        self.menu.add_command(label="Save file", command=self._handle_save)
         self.menu.add_separator()
-        self.menu.add_command(label="🗑️ Delete file", command=self._handle_delete)
-        self.menu.add_command(label="✎ Rename file", command=self._on_edit)
+        self.menu.add_command(label="Delete file", command=self._handle_delete)
+        self.menu.add_command(label="Rename file", command=self._on_edit)
         # Hover bindings
         widgets = (self.name_entry, self.size_label, self.date_label, self.menu_button, self.link_checkbox)
         self._bind_hover(self)
@@ -119,9 +123,9 @@ class FileRow(ctk.CTkFrame):
 
 
     def _on_edit(self):
-        self.name_entry.configure(state="normal")
+        self.name_entry.configure(state="normal",border_width=2)
         self.name_entry.focus()
-        end = self.name_entry.get().find(".")
+        end = self.name_entry.get().rfind(".")
         self.name_entry.select_range(0, end)
         self.name_entry.icursor(end)
         
@@ -133,17 +137,43 @@ class FileRow(ctk.CTkFrame):
                 self.name_entry.delete(0, "end")
                 self.name_entry.insert(0, self.filename)
         else:
-            self.client_bl._send_message({"cmd": "rename", "filename": new_filename, "file_id": self.file_id})
-            response = self.client_bl._get_message()
-            print(response)
-            if response["status"]:
-                self.filename = new_filename
-        self.name_entry.configure(state="disabled")
+            if (not self.client_bl.work_event.is_set()) and self.client_bl._send_message({"cmd": "rename", "filename": new_filename, "file_id": self.file_id}):
+                response = self.client_bl._get_message()
+                if response:
+                    if response["status"]:
+                        self.filename = new_filename
+
+        self.name_entry.configure(state="disabled", border_width=0)
     def _on_cancel(self, event=None):
         self.name_entry.delete(0, "end")
         self.name_entry.insert(0, self.filename)
-        self.name_entry.configure(state="disabled")
+        self.name_entry.configure(state="disabled", border_width=0)
 
-        
 
-        
+
+class FolderRow(ctk.CTkFrame):
+    pass     
+
+
+class CTKMenu(ctk.CTkScrollableFrame):
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+        self.__buttons: list[ctk.CTkButton] = []
+        self.default_fg = self.cget("fg_color")
+        self.hover_fg = ("#cfcfcf", "#3a3a3a")
+        self.__last_row_index = 0
+
+        self.grid_columnconfigure(0, minsize=50)
+    def add_command(self, label="", command: Callable[..., Any] = None):
+        new_btn_command = ctk.CTkButton(
+            self,
+            command=command,
+            fg_color=self.default_fg,
+            hover_color=self.hover_fg,
+            text=label,
+            anchor="center",
+            font=ctk.CTkFont("Helvetica",16)
+        )
+        new_btn_command.grid(row=self.__last_row_index, column=0, sticky="ew")
+        self.__last_row_index+=1
+        self.__buttons.append(new_btn_command)

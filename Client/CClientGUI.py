@@ -45,5 +45,6 @@ class App(ctk.CTk):
 
         self.home.tkraise()
 if __name__ == "__main__": 
+    
     app = App()
     app.mainloop()

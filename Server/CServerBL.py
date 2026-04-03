@@ -22,7 +22,7 @@ class CServerBL():
     def _create_tables(self):
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("PRAGMA foreign_keys = ON")
-            conn.executescript("""
+            conn.executescript(f"""
                 CREATE TABLE IF NOT EXISTS users(
                     user_id INTEGER PRIMARY KEY,
                     username TEXT,
@@ -39,9 +39,18 @@ class CServerBL():
                     modified INTEGER,
                     file_hash TXT,
                     user_id INTEGER,
+                    folder_id INTEGER,
                     share_link BOOLEAN NOT NULL DEFAULT 0,
-                    FOREIGN KEY(user_id) REFERENCES users(user_id)
+                    FOREIGN KEY(user_id) REFERENCES users(user_id),
+                    FOREIGN KEY(folder_id) REFERENCES folder(folder_id)
                 );
+                CREATE TABLE IF NOT EXISTS folders(
+                    folder_id TEXT PRIMARY KEY,
+                    folder_name TEXT,
+                    root  BOOLEAN NOT NULL DEFAULT 0,
+                    user_id INTEGER,
+                    FOREIGN KEY(user_id) REFERENCES users(user_id)
+                )
             """
             )
 
@@ -65,9 +74,9 @@ class CServerBL():
 
             if mime is None:
                 mime = "application/octet-stream"
-                disposition = "attachment"
+                disposition = f"attachment; filename={filename}"
             else:
-                disposition = "inline"
+                disposition = f"inline; filename={filename}"
 
             def generate():
                 with open(f"StorageFiles/{file_id}.encrypted", "rb") as f:
@@ -81,7 +90,7 @@ class CServerBL():
                 mimetype=mime,
                 headers={
                     "Content-Disposition": disposition,
-                    "X-Content-Type-Options": "nosniff",
+                    "X-Content-Type-Options": "nosniff"
                 },
             )           
     def _run_flask(self) -> None:
@@ -232,15 +241,13 @@ class ClientHandler(threading.Thread):
         self.write_to_log(f"[SERVER] {threading.active_count() - 2} Are currently connected!")
         i = 1
         while self._event.is_set():
+            print(i)
             try:
                 json_string: str | None = self._get_message()
                 if json_string:
                     request: dict[str, Any] = json.loads(json_string)
-                    print(request)
                     response: dict[str, Any] | None = handle_client_request(request,self)
                     if response:
-                        if response.get("cmd") == "!DIS":
-                            break 
                         self._send_message(response)
                 else:  
                     break

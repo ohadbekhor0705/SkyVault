@@ -137,7 +137,7 @@ class FileRow(ctk.CTkFrame):
                 self.name_entry.delete(0, "end")
                 self.name_entry.insert(0, self.filename)
         else:
-            if (not self.client_bl.work_event.is_set()) and self.client_bl._send_message({"cmd": "rename", "filename": new_filename, "file_id": self.file_id}):
+            if (not self.client_bl.work_event.is_set()) and self.client_bl._send_message({"cmd": "rename", "name": new_filename, "id": self.file_id, "type": "file"}):
                 response = self.client_bl._get_message()
                 if response:
                     if response["status"]:
@@ -149,10 +149,6 @@ class FileRow(ctk.CTkFrame):
         self.name_entry.insert(0, self.filename)
         self.name_entry.configure(state="disabled", border_width=0)
 
-
-
-class FolderRow(ctk.CTkFrame):
-    pass     
 
 
 class CTKMenu(ctk.CTkScrollableFrame):

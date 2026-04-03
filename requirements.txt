@@ -7,3 +7,4 @@ pyopenssl
 flask
 pyperclip
 pillow
+CTkMenuBar

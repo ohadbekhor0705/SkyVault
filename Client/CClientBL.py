@@ -26,7 +26,6 @@ class CClientBL():
 
         self.current_storage: int = 0
         self.max_storage: int = 0
-        self.files: list[dict[str,Any]] = []
         self.username: str = ""
         self.work_event: threading.Event = threading.Event()
         self._process_handshake()
@@ -84,16 +83,52 @@ class CClientBL():
             response: dict[str, Any] = json.loads(self.fernet.decrypt(response_bytes_encrypted).decode())
             if response["status"] == True:
                 self.connection_event.set() # setting the flag to True.
-                self.files = response["files"]
+                self.folders = response["folders"]
                 self.username = auth["username"]
                 self.current_storage = response["curr_storage"]
                 self.max_storage = response["max_storage"]
                 self._conn = self._conn
-            print(response)
             return response
         except (ConnectionAbortedError, ConnectionError, ConnectionResetError):
             return {"status": False,"message": "Server Error"}
-    def sendfile(self,file: BinaryIO,callbacks: list[Callable], **kwargs) -> None:
+    def get_files_data(self, folder_id: str, parent: CTkScrollableFrame, callbacks: list[Callable]) -> list[FileRow]:
+
+        self.work_event.set()
+
+        self._send_message({
+            "cmd":"get_files",
+            "folder_id": folder_id
+        }
+        )
+        response = self._get_message()
+        file_rows: list[FileRow] = []
+        if response["status"]:
+            files_data = response["files"]
+            print(len(files_data))
+            for i, file_data in enumerate(files_data):
+                file_row = FileRow(
+                    parent,
+                    file_data["file_id"],
+                    file_data["filename"],
+                    file_data["size"],
+                    str(datetime.fromtimestamp(file_data["modified"]).date()),
+                    file_data["file_hash"],
+                    bool(file_data["share_link"]),
+                    self,
+                    on_delete=callbacks[0](file_data["file_id"],file_data["size"],None),
+                    on_save=callbacks[1](file_data["file_id"], file_data["filename"] ),
+                    on_share=None,
+                )
+                # Fix the row references in the callback after row is created
+                file_row.on_delete = callbacks[0](file_data["file_id"],file_row.file_size ,file_row)
+                file_row.on_share = callbacks[2](file_row)
+
+                file_rows.append(file_row)
+
+        self.work_event.clear()
+        return file_rows
+        
+    def sendfile(self,file: BinaryIO,folder_id:int ,callbacks: list[Callable], **kwargs) -> None:
         """Sending file to server.
 
         Args:
@@ -116,7 +151,7 @@ class CClientBL():
             return
         file_hash = self._hash_file(file)
         print(file_hash)
-        payload: dict[str, Any] = {"cmd": "upload","filename":  file.name.split("/")[-1],"filesize": file_size, "hash": file_hash}
+        payload: dict[str, Any] = {"cmd": "upload","filename":  file.name.split("/")[-1], "folder_id": folder_id,"filesize": file_size, "hash": file_hash}
         self._send_message(payload) # sending a data into
 
         # sending file in chunks
@@ -130,7 +165,6 @@ class CClientBL():
         response = self._get_message() # getting response
         self.work_event.clear() # clearing working flag
         if response["status"]:
-            self.files.append({"file_id": response["file_id"] ,"filename": payload["filename"], "filesize": file_size})
             self.current_storage += file_size
             bar.set(self.current_storage/self.max_storage)
             header_field.configure(text=response["message"])
@@ -153,7 +187,6 @@ class CClientBL():
             file_row.on_delete = callbacks[0](response["file_id"],file_size ,file_row)
             file_row.on_share = callbacks[2](file_row)
             file_row.grid(row =last_row,column=0 , sticky="ew", padx=12, pady=6) 
-            kwargs["file_rows"].append(file_row)
     def _hash_file(self, file: BinaryIO, algorithm = "sha256", return_to_start=True) -> str:
         hasher = hashlib.new(algorithm)  
         BLOCKSIZE = io.DEFAULT_BUFFER_SIZE

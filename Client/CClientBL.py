@@ -32,13 +32,17 @@ class CClientBL():
     def _process_handshake(self) -> None:
         while True:
             try:
+                print("Attempting to connect...")
                 _client_socket = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
-                _client_socket.connect(("localhost",5050))
+                _client_socket.connect(("127.0.0.1",7777))
                 self._conn = _client_socket
                 break
             except ConnectionRefusedError:
+                print("Connection Has failed")
                 _client_socket.close()
             sleep(0.5)
+
+
 
         # Receiving public key from server
         key_len_recv = _client_socket.recv(4)
@@ -81,6 +85,7 @@ class CClientBL():
             response_length: bytes = self._conn.recv(4)
             response_bytes_encrypted: bytes = self._conn.recv(struct.unpack(FORMAT,response_length)[0])
             response: dict[str, Any] = json.loads(self.fernet.decrypt(response_bytes_encrypted).decode())
+            print(response)
             if response["status"] == True:
                 self.connection_event.set() # setting the flag to True.
                 self.folders = response["folders"]
@@ -91,42 +96,46 @@ class CClientBL():
             return response
         except (ConnectionAbortedError, ConnectionError, ConnectionResetError):
             return {"status": False,"message": "Server Error"}
-    def get_files_data(self, folder_id: str, parent: CTkScrollableFrame, callbacks: list[Callable]) -> list[FileRow]:
+    def get_files_data(self, folder_id: str, parent: CTkScrollableFrame, callbacks: list[Callable], **kwargs) -> list[FileRow]:
 
         self.work_event.set()
+        animate: Callable | None = kwargs.get("animate")
+        if animate: 
+            threading.Thread(target=animate).start()
+        header_field: CTkLabel | None = kwargs.get("header_field")
+        try:
+            self._send_message({"cmd":"get_files","folder_id":folder_id} )
+            response = self._get_message()
+            file_rows: list[FileRow] = []
+            if response["status"]:
+                files_data = response["files"]
+                print(len(files_data))
+                for i, file_data in enumerate(files_data):
+                    file_row = FileRow(
+                        parent,
+                        file_data["file_id"],
+                        file_data["filename"],
+                        file_data["size"],
+                        str(datetime.fromtimestamp(file_data["modified"]).date()),
+                        file_data["file_hash"],
+                        bool(file_data["share_link"]),
+                        self,
+                        on_delete=callbacks[0](file_data["file_id"],file_data["size"],None),
+                        on_save=callbacks[1](file_data["file_id"], file_data["filename"] ),
+                        on_share=None,
+                    )
+                    # Fix the row references in the callback after row is created
+                    file_row.on_delete = callbacks[0](file_row.file_id,file_data["size"] ,file_row)
+                    file_row.on_share = callbacks[2](file_row)
 
-        self._send_message({
-            "cmd":"get_files",
-            "folder_id": folder_id
-        }
-        )
-        response = self._get_message()
-        file_rows: list[FileRow] = []
-        if response["status"]:
-            files_data = response["files"]
-            print(len(files_data))
-            for i, file_data in enumerate(files_data):
-                file_row = FileRow(
-                    parent,
-                    file_data["file_id"],
-                    file_data["filename"],
-                    file_data["size"],
-                    str(datetime.fromtimestamp(file_data["modified"]).date()),
-                    file_data["file_hash"],
-                    bool(file_data["share_link"]),
-                    self,
-                    on_delete=callbacks[0](file_data["file_id"],file_data["size"],None),
-                    on_save=callbacks[1](file_data["file_id"], file_data["filename"] ),
-                    on_share=None,
-                )
-                # Fix the row references in the callback after row is created
-                file_row.on_delete = callbacks[0](file_data["file_id"],file_row.file_size ,file_row)
-                file_row.on_share = callbacks[2](file_row)
-
-                file_rows.append(file_row)
-
-        self.work_event.clear()
-        return file_rows
+                    file_rows.append(file_row)
+        except (ConnectionAbortedError, ConnectionError, ConnectionResetError):
+            if header_field:
+                self.work_event.clear()
+                header_field.configure(text="Something went wrong with the server! Couldn't retrieve data from the cloud", text_color="red")
+        finally:
+            self.work_event.clear()
+            return file_rows
         
     def sendfile(self,file: BinaryIO,folder_id:int ,callbacks: list[Callable], **kwargs) -> None:
         """Sending file to server.
@@ -137,12 +146,15 @@ class CClientBL():
         """
         print("sendfile() started!")
         self.work_event.set()
-        threading.Thread(target=kwargs["animate"]).start() # starting animation in GUI
-
         global FORMAT
         header_field: CTkLabel =  kwargs["header_field"]
         parent: CTkScrollableFrame = kwargs["parent"]
         bar = kwargs["bar"]
+
+        header_field.configure(text_color="black")
+        threading.Thread(target=kwargs["animate"]).start() # starting animation in GUI
+
+       
         file_size: int = os.path.getsize(file.name) # file size in bytes.
         # if user doesn't have storage then display appropriate message
         if file_size + self.current_storage  > self.max_storage:
@@ -152,41 +164,48 @@ class CClientBL():
         file_hash = self._hash_file(file)
         print(file_hash)
         payload: dict[str, Any] = {"cmd": "upload","filename":  file.name.split("/")[-1], "folder_id": folder_id,"filesize": file_size, "hash": file_hash}
-        self._send_message(payload) # sending a data into
+        try:
+            self._send_message(payload) # sending a data into
 
-        # sending file in chunks
-        while chunk := file.read(CHUNK_SIZE):
-            encrypted_chunk = self.fernet.encrypt(chunk) 
-            header = struct.pack(FORMAT, len(encrypted_chunk)) # calculating header
-            self._conn.sendall(header + encrypted_chunk) # sending a packet; [header|encrypted chunk]
-        self._conn.sendall(struct.pack(FORMAT, 0)) # sending EOF (End Of File) Packet
-        file.close()
+            # sending file in chunks
+            while chunk := file.read(CHUNK_SIZE):
+                encrypted_chunk = self.fernet.encrypt(chunk) 
+                header = struct.pack(FORMAT, len(encrypted_chunk)) # calculating header
+                self._conn.sendall(header + encrypted_chunk) # sending a packet; [header|encrypted chunk]
+            self._conn.sendall(struct.pack(FORMAT, 0)) # sending EOF (End Of File) Packet
+            file.close()
 
-        response = self._get_message() # getting response
-        self.work_event.clear() # clearing working flag
-        if response["status"]:
-            self.current_storage += file_size
-            bar.set(self.current_storage/self.max_storage)
-            header_field.configure(text=response["message"])
-            last_row = parent.grid_size()[1]  # next empty row
-            file_row = FileRow(
-                parent, 
-                response["file_id"],
-                file.name.split("/")[-1],
-                file_size,
-                datetime.now().strftime("%Y-%m-%d"),
-                file_hash,
-                False,
-                self,
-                on_delete=callbacks[0](response["file_id"],file_size,None),
-                on_save=callbacks[1](response["file_id"], file.name.split("/")[-1]),
-                on_share=None,
-            )
+            response = self._get_message() # getting response
 
-            # Fix the row references in the callback after row is created
-            file_row.on_delete = callbacks[0](response["file_id"],file_size ,file_row)
-            file_row.on_share = callbacks[2](file_row)
-            file_row.grid(row =last_row,column=0 , sticky="ew", padx=12, pady=6) 
+    
+            if response["status"]:
+                self.current_storage += file_size
+                bar.set(self.current_storage/self.max_storage)
+                header_field.configure(text=response["message"], text_color = "green")
+                last_row = parent.grid_size()[1]  # next empty row
+                file_row = FileRow(
+                    parent, 
+                    response["file_id"],
+                    file.name.split("/")[-1],
+                    file_size,
+                    datetime.now().strftime("%Y-%m-%d"),
+                    file_hash,
+                    False,
+                    self,
+                    on_delete=callbacks[0](response["file_id"],file_size,None),
+                    on_save=callbacks[1](response["file_id"], file.name.split("/")[-1]),
+                    on_share=None,
+                )
+
+                # Fix the row references in the callback after row is created
+                file_row.on_delete = callbacks[0](response["file_id"],file_size ,file_row)
+                file_row.on_share = callbacks[2](file_row)
+                file_row.grid(row =last_row,column=0 , sticky="ew", padx=12, pady=6)
+                
+        except (ConnectionResetError, ConnectionAbortedError, ConnectionError):
+            header_field.configure(text="Something went wrong with the server! Couldn't fulfill the request.", text_color="red")
+        finally:
+            self.work_event.clear() # clearing working flag
     def _hash_file(self, file: BinaryIO, algorithm = "sha256", return_to_start=True) -> str:
         hasher = hashlib.new(algorithm)  
         BLOCKSIZE = io.DEFAULT_BUFFER_SIZE
@@ -200,7 +219,7 @@ class CClientBL():
         self.work_event.set()
         header = kwargs["header_field"]
         bar = kwargs["bar"]
-        payload = {"cmd": "delete", "id": file_id}
+        payload = {"cmd": "delete","type": "file", "id": file_id}
         self._send_message(payload)
         response = self._get_message()
         print(response)
@@ -209,12 +228,45 @@ class CClientBL():
             print(self.current_storage)
             bar.set(self.current_storage/self.max_storage)
         self.work_event.clear()
+    def delete_folder(self,folder_row,folder_rows: dict, **kwargs) -> None:
+        self.work_event.set()
+        header_field: CTkLabel | None = kwargs.get("header_field")
+        progress_bar: CTkLabel | None = kwargs.get("bar")
+        try:
+            self._send_message({"cmd":"delete", "type": "folder", "id": folder_row.folder_id})
+
+            response = self._get_message()
+
+            if not response:
+                raise ConnectionError
+            if response["status"]:
+                self.current_storage = response["current_storage"]
+                del folder_rows[folder_row.folder_id]
+                value = next(iter(folder_rows.values()))
+                
+                value.on_click()
+                folder_row.destroy()
+                del folder_row
+            else:
+                if header_field:
+                    header_field.configure(text="The server could'nt this this folder", text_color="red")
+
+        except (ConnectionAbortedError, ConnectionResetError,ConnectionError):
+            if header_field:
+                header_field.configure(text="Something went wrong with the server! Couldn't fulfill the request.", text_color="red")
+            if progress_bar:
+                progress_bar.set(self.current_storage/self.max_storage)
+
+        finally:
+            self.work_event.clear()
+        
     def ReceiveFile(self, file_id:str, filename:str,save_path: str, **kwargs) -> None:
         self.work_event.set()
         header_field: CTkLabel =  kwargs["header_field"]
         self._send_message({"cmd": "save", "file_id": file_id})
+        path = f"{save_path}/{filename}"
         try:
-            with open(f"{save_path}/{filename}","wb") as f:
+            with open(path,"wb") as f:
                 while True:
                     header: int = struct.unpack(FORMAT, self._recv_exact(4))[0]
                     if header == 0:
@@ -224,7 +276,8 @@ class CClientBL():
                     decrypted: bytes = self.fernet.decrypt(self._recv_exact(header))
                     f.write(decrypted)
         except (ConnectionAbortedError, ConnectionResetError):
-            header_field.configure("Something when wrong with the server! Couldn't fulfill the request.")
+            os.remove(path)
+            header_field.configure(text="Something went wrong with the server! Couldn't fulfill the request.",text_color="red")
         finally:
             self.work_event.clear()
     @overload
@@ -274,3 +327,5 @@ class CClientBL():
                 raise ConnectionError("Socket closed unexpectedly")
             data.extend(packet)
         return bytes(data)
+    
+

@@ -9,6 +9,7 @@ import os
 from uuid import uuid4
 from cryptography.fernet import Fernet
 import sqlite3
+from pathlib import Path
 DB_PATH = "./mydb.db"
 FORMAT = "!I"
 CHUNK_SIZE = 1024 *64  # 64 KB
@@ -168,7 +169,6 @@ def InsertUser(user: Dict[str,Any]) -> tuple[dict[str, Any], None] | tuple[dict[
         )
         user_id: int = cur.execute("SELECT user_id FROM users WHERE username == :username", user).fetchone()[0]
         cur.execute("INSERT INTO folders(folder_id,folder_name, root, user_id) VALUES (?,?,?,?)",(str(uuid7()),"root",True,user_id))
-        root_folder_id = cur.execute("SELECT folder_id from folders where folder_name = 'root' ").fetchone()[0]
         conn.commit()
     return {"status": True,"message": "Welcome to skyVault!","curr_storage": 0,"max_storage": 1073741824, "folders": get_folders_by_id(user_id)}, user_id
 def files_by_id(uid: int)   -> list[dict[str, Any]]:
@@ -199,7 +199,7 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
     file_size = payload["filesize"]
     HEADER_SIZE = struct.calcsize(FORMAT) # Ensure FORMAT matches size
     
-    save_path = f"./StorageFiles/{file_id}.encrypted"
+    save_path = f"./StorageFiles/{file_id}.bin"
     try:
         if not os.path.exists("StorageFiles"):
             os.mkdir("StorageFiles")
@@ -238,7 +238,7 @@ def SendFile(file_id: str, ClientHandler) -> None:
     client: socket.socket = ClientHandler.client
     try:
         ClientHandler.write_to_log(f"Sending file to {ClientHandler}...")
-        with open(f"StorageFiles/{file_id}.encrypted", "rb") as f:
+        with open(f"StorageFiles/{file_id}.bin", "rb") as f:
             while header := f.read(4):
                 print(header)
                 original_chunk: bytes = file_fernet.decrypt(f.read(struct.unpack(FORMAT,header)[0]))
@@ -356,15 +356,33 @@ def recv_exact(sock: socket.socket, size: int) -> bytes:
     if size == 0:
         return b''
     data = bytearray()
-    while len(data) < size:
-        packet: bytes = sock.recv(size - len(data))
-        if not packet:
-            return b''
-        data.extend(packet)
+    try:
+        while len(data) < size:
+            packet: bytes = sock.recv(size - len(data))
+            if not packet:
+                return b''
+            data.extend(packet)
+    except socket.error:
+        return b''
     return bytes(data)
+def DeleteFolder(folder_id: str,user_id: int, db_conn: sqlite3.Connection):
+    try:
+        cur = db_conn.cursor()
+        affected_rows = cur.execute("UPDATE users SET curr_storage = curr_storage - COALESCE((SELECT SUM(size) from files WHERE folder_id = ?),0) WHERE user_id = ?",(folder_id, user_id)).rowcount
+        file_ids: list[str] = cur.execute("SELECT file_id FROM files where folder_id = ?",(folder_id,)).fetchall()
+        cur.execute("DELETE FROM folders WHERE folder_id = ?",(folder_id,))
+        cur.execute("DELETE FROM files where folder_id = ?",(folder_id,))
+        db_conn.commit()
 
 
+        current_storage = cur.execute("SELECT curr_storage from users WHERE user_id = ?", (user_id,)).fetchone()[0] or 0
+        for file_id in file_ids:
+            file_path = f"./StorageFiles/{file_ids}.bin"
+            Path(file_path).unlink(missing_ok=True)
 
+    except (sqlite3.InternalError, OSError):
+        return {"status": False,"message": "Could'nt fullfill the request."}
+    return {"status": True, "current_storage": current_storage}
 def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> dict[str, Any] | None:
     """Handling clients requests
 
@@ -378,7 +396,7 @@ def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> di
     """ 
     response: dict[str, Any] | None = {}
     ClientHandler.write_to_log(f"fetching {ClientHandler}'s Request: "+payload["cmd"])
-    db_conn = ClientHandler.db_conn
+    db_conn: sqlite3.Connection = ClientHandler.db_conn
     match payload["cmd"]:
         case "login":
             if _user := getUser(payload):
@@ -399,7 +417,10 @@ def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> di
         case "upload":
             response = UploadFile(payload,ClientHandler)
         case "delete":
-            response = DeleteFile(payload["id"], ClientHandler)
+            if payload["type"] == "file":
+                response = DeleteFile(payload["id"], ClientHandler)
+            if payload["type"] == "folder":
+                response = DeleteFolder(payload["id"],ClientHandler.user_id, db_conn)
         case "save":
             response = SendFile(payload["file_id"], ClientHandler)
         case "handlelink":

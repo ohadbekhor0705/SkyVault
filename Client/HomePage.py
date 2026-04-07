@@ -178,3 +178,9 @@ class HomePage(ctk.CTkFrame):
         """
         if self.on_authenticate:
             self.on_authenticate()
+
+if __name__ == "__main__":
+    app = ctk.CTk()
+    home_page = HomePage(app)
+    home_page.place(relx=0, rely=0, relwidth=1, relheight=1)
+    app.mainloop()

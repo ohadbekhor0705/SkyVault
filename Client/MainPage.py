@@ -15,8 +15,7 @@ def load_icon(path):
     img = Image.open(path)
     return ctk.CTkImage(img, img)
 
-icons = {
-    "folder": load_icon("./icons/folder.png"),
+icons: dict[str, ctk.CTkImage] = {
     "share": load_icon("./icons/share.png"),
     "edit": load_icon("./icons/edit.png"),
     "upload": load_icon("./icons/cloud_upload.png"),
@@ -26,6 +25,8 @@ icons = {
     "cloud_lock": load_icon("./icons/cloud_lock.png")
 }
 ctk.set_appearance_mode("light")
+ctk.FontManager.load_font("./fonts/Arial-VariableFont_wght.ttf")
+
 class MainFrame(ctk.CTkFrame):
     def __init__(
         self,
@@ -40,10 +41,10 @@ class MainFrame(ctk.CTkFrame):
         self.folder_rows: dict[str, FolderRow] = {}
 
 
-        self.FolderFrames = ctk.CTkScrollableFrame(self, fg_color="transparent")
+        self.folders_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.files_frame = ctk.CTkScrollableFrame(self, fg_color="transparent")
         self.files_frame.columnconfigure(0, weight=1)
-        self.FolderFrames.columnconfigure(0, weight=1)
+        self.folders_frame.columnconfigure(0, weight=1)
 
 
         self.grid_columnconfigure(0, weight=0, minsize=275)
@@ -55,13 +56,14 @@ class MainFrame(ctk.CTkFrame):
         self.header = ctk.CTkLabel(
             self,
             text="",
-            font=ctk.CTkFont(size=20)
+            font=ctk.CTkFont("Arial",20)
         )
         self.header.grid(row=0, column=0, sticky="ew", pady=9,padx=9, columnspan=2)
+        
         self.upload_button = ctk.CTkButton( # Upload button
             self,
             text="Upload File",
-            font= ctk.CTkFont(size=20),
+            font= ctk.CTkFont("Arial",20),
             image=icons["upload"],
             compound="right",
             command=self._on_click_Upload
@@ -71,7 +73,7 @@ class MainFrame(ctk.CTkFrame):
             text="",
             image=icons["new_folder"],
             compound="right",
-            font = ctk.CTkFont(size=20),
+            font = ctk.CTkFont("Arial",20),
             command=self.on_click_create_folder
         )
         self.progress_bar = ctk.CTkProgressBar(self)
@@ -79,48 +81,28 @@ class MainFrame(ctk.CTkFrame):
         self.progress_bar.grid(row=1, column=0, sticky="nsew",pady=9,padx=9, columnspan=2)
         self.upload_button.grid(row=2, column=1, sticky="nsew",pady=9,padx=9)
         self.create_folder_button.grid(row=2, column=0, sticky="nsew",pady=9,padx=9)
-        self.FolderFrames.grid(row=3, column=0, sticky="nsew",pady=7,padx=9)
+        self.folders_frame.grid(row=3, column=0, sticky="nsew",pady=7,padx=9)
         self.files_frame.grid(row=3, column=1, sticky="nsew", padx=3,pady=7)
 
-        # if client_bl:
-        #     self.progress_bar.set(self.client_bl.current_storage/self.client_bl.max_storage)
-        #     for i, f in enumerate(client_bl.files):
-        #         row = FileRow(
-        #             self.files_frame,
-        #             f["file_id"],
-        #             f["filename"],
-        #             f["size"],
-        #             str(datetime.fromtimestamp(f["modified"]).date()),
-        #             f["file_hash"],
-        #             bool(f["share_link"]),
-        #             self.client_bl, 
-        #             on_delete=self.make_delete_callback(f["file_id"],f["size"] , None),  # placeholder row, will fix below
-        #             on_save=self.make_save_callback(f["file_id"], f["filename"]),
-        #             on_share=None
-        #         )
-
-        #         # Fix the row references in the callback after row is created
-        #         row.on_delete = self.make_delete_callback(f["file_id"],f["size"], row)
-        #         row.on_share= self.make_share_callback(row)
-
-        #         row.grid(row=i+3, column=0, sticky="nsew", padx=12, pady=6)
-        #         self.file_rows.append(row)
 
         if client_bl:
             self.progress_bar.set(self.client_bl.current_storage/self.client_bl.max_storage)
             for i, f in enumerate(self.client_bl.folders):
-                folder_row = FolderRow(self.FolderFrames,self, f["folder_name"],f["folder_id"],self.client_bl, bool(f["root"]))
-                folder_row.grid(column=0, row=i, sticky= "nsew", padx=5, pady=5)
+                folder_row = FolderRow(self.folders_frame,self, f["folder_name"],f["folder_id"],self.client_bl, bool(f["root"]))
+                folder_row.grid(column=0, row=i, sticky= "nsew", padx=12, pady=6)
                 self.folder_rows[folder_row.folder_id] = folder_row
                 if f["root"]:
                     self.selected_folder_id = f["folder_id"]
-        # else:
-        #     for i in range(15):
-        #         folder_row = FolderRow(self.FolderFrames,self, "folder_name",f"{i}",self.client_bl, i == 0)
-        #         folder_row.grid(column=0, row=i, sticky= "nsew", padx=12, pady=6)
-        #         self.folder_rows[folder_row.folder_id] = folder_row
-        #         if i == 0:
-        #             self.selected_folder_id = "0"
+
+        else:
+            folder_row = FolderRow(self.folders_frame,self, "root","id",None, True)
+            self.selected_folder_id = folder_row.folder_id
+            folder_row.grid(column=0, row=0, sticky= "nsew", padx=12, pady=6)
+            for i in range(1,15):
+                folder_row = FolderRow(self.folders_frame,self, "folder_name","folder_id",self.client_bl, False)
+                folder_row.grid(column=0, row=i, sticky= "nsew", padx=12, pady=6)
+                self.folder_rows[folder_row.folder_id] = folder_row
+
 
             
     def _on_click_Upload(self) -> None:
@@ -201,9 +183,10 @@ class MainFrame(ctk.CTkFrame):
         if self.client_bl._send_message({"cmd": "create_folder"}):
             response = self.client_bl._get_message()
             if response["status"]:
-                new_folder = FolderRow(self.FolderFrames, self,"", response["folder_id"], self.client_bl, False)
-                self.folder_rows[response["folder_id"]] = new_folder
-                new_folder.grid(column=0, row = self.FolderFrames.grid_size()[1],sticky= "nsew", padx=5, pady=7)
+                folder_id: str = response["folder_id"]
+                new_folder = FolderRow(self.folders_frame, self,"", folder_id, self.client_bl, False)
+                self.folder_rows[folder_id] = new_folder
+                new_folder.grid(column=0, row = self.folders_frame.grid_size()[1],sticky= "nsew", padx=12, pady=6)
                 new_folder._on_double_click()
     def clear_file_rows(self):
         for file_row in self.files_frame.grid_slaves():
@@ -218,13 +201,13 @@ class MainFrame(ctk.CTkFrame):
 
 
 class FolderRow(ctk.CTkFrame):
-    def __init__(self, master: ctk.CTkScrollableFrame,main_frame: MainFrame, folder_name: str,folder_id: str, client_bl: CClientBL, is_root: bool = False, **kwargs):
+    def __init__(self, master: ctk.CTkScrollableFrame,main_frame: MainFrame, folder_name: str ,folder_id: str, client_bl: CClientBL, is_root: bool = False, **kwargs):
         
         super().__init__(master,**kwargs)
         self.client_bl = client_bl
         self.is_root = is_root
         #self.file_rows: list[FileRow] = []
-        self.folder_name = folder_name
+        self.folder_name = folder_name if folder_name != "" else "unnamed"
         self.root = master
 
         self.main_frame = main_frame
@@ -232,49 +215,52 @@ class FolderRow(ctk.CTkFrame):
         self.default_fg = self.cget("fg_color")
         self.hover_fg = ("#cfcfcf", "#3a3a3a")
         # self.columnconfigure(0,weight=1)
-        self.columnconfigure(1,weight=1)
+        self.columnconfigure(1,weight=0, minsize=20)
 
         Padx = 12
         Pady = 6
 
         self.folder_entry = ctk.CTkEntry(self, border_width=0, font=ctk.CTkFont("Arial",20), fg_color="transparent")
-        self.image_label = ctk.CTkLabel(self, image=icons["cloud_lock"] if self.is_root else icons["folder"],text="")
         self.folder_entry.insert(0, folder_name)
         self.folder_entry.configure(state="disabled")
 
         self.folder_entry.grid(row=0,column=0, sticky="nsew" ,padx=Padx,pady=Pady)
-        self.image_label.grid(row=0,column=1,sticky="e" ,padx=Padx,pady=Pady)
 
         
 
-        self.bind("<Button-1>", lambda event: threading.Thread(target=self.on_click).start())
+        # self.bind("<Button-1>", lambda event: threading.Thread(target=self.on_click).start())
         if not self.is_root:
+            self.delete_button = ctk.CTkButton(self,text="", image=icons["delete"], command=self.on_click_delete, width=20, fg_color="red")
+            self.delete_button.grid(row=0,column=1,sticky="nsew" ,padx=0,pady=Pady)
+
             self.folder_entry.bind("<Double-Button-1>", self._on_double_click)
             self.folder_entry.bind("<Return>", self._on_send)
             self.folder_entry.bind("<Escape>", self._on_cancel)
 
         self.configure(corner_radius=15)
 
-        for w in (self.folder_entry, self.image_label):
-            self._bind_hover(w)
+        self._bind_hover(self.folder_entry)
 
     def on_click(self, event=None):
-        prev: FolderRow = self.main_frame.folder_rows[self.main_frame.selected_folder_id]
-        prev.configure(border_width=0)
-        prev._on_cancel()
+        if prev := self.main_frame.folder_rows.get(self.main_frame.selected_folder_id):
+            if prev != self:
+                prev.configure(border_width=0)
+                prev._on_cancel()
+        
         self.main_frame.clear_file_rows()
         self.main_frame.selected_folder_id = self.folder_id
         print(self.main_frame.selected_folder_id)
-        self.configure(border_width = 4, border_color=("gray75", "gray25"))
+        self.configure(border_width = 4, border_color=("gray50", "gray75"), fg_color = "transparent")
 
-        file_rows = self.client_bl.get_files_data(
+        file_rows: list[FileRow] = self.client_bl.get_files_data(
             self.folder_id,
-            self.main_frame.files_frame,
-            [
+            self.main_frame.files_frame,[
                 self.main_frame.make_delete_callback,
                 self.main_frame.make_save_callback,
                 self.main_frame.make_share_callback
-            ]
+            ],
+            header_field = self.main_frame.header,
+            animate = self.main_frame.animate
         )
 
         for i, file_rows in enumerate(file_rows):
@@ -309,11 +295,21 @@ class FolderRow(ctk.CTkFrame):
         self.main_frame.upload_button.configure(state="normal")
         self.main_frame.create_folder_button.configure(state="normal")
 
+    def on_click_delete(self, event=None):
+        threading.Thread(target=self.client_bl.delete_folder(
+            self,
+            self.main_frame.folder_rows,
+            header_field=self.main_frame.header,
+            bar=self.main_frame.progress_bar
+        )).start()
+
+
     # Hover handling
-    def _bind_hover(self, widget):
-        widget.bind("<Enter>", self._on_enter)
-        widget.bind("<Leave>", self._on_leave)
-        widget.bind("<Button-1>", self.on_click)
+    def _bind_hover(self, *widgets: list[ctk.CTkFrame]):
+        for widget in widgets:
+            widget.bind("<Button-1>", lambda event: threading.Thread(target=self.on_click).start())
+            widget.bind("<Enter>", self._on_enter)
+            widget.bind("<Leave>", self._on_leave)
 
     def _on_enter(self, event=None):
         self.configure(fg_color=self.hover_fg)

@@ -6,7 +6,7 @@ import json  # Import json for message serialization
 import os  # Import os for file system operations
 from typing import Callable, List, Tuple, Dict
 from flask import Flask, Response, abort, stream_with_context
-from protocol2 import *  # Import protocol definitions
+from protocol import *  # Import protocol definitions
 import bcrypt  # Import bcrypt for password hashing
 import struct
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
@@ -28,7 +28,7 @@ class CServerBL():
                     username TEXT,
                     password_hash BLOB,
                     max_storage INTEGER DEFAULT 1073741824,
-                    curr_storage INTEGER DEFAULT 0,
+                    curr_storage INTEGER NOT NULL DEFAULT 0,
                     tries INTEGER DEFAULT 0,
                     disabled BOOLEAN NOT NULL DEFAULT 0
                 );
@@ -55,6 +55,11 @@ class CServerBL():
             )
 
     def _register_routes(self) -> None:
+        @self.app.before_request
+        def check_server_status():
+            # If the threading.Event is cleared, block all incoming HTTP requests
+            if not self._event.is_set():
+                    abort(503, description="Server is shutting down or inactive.")
         @self.app.route("/view_file/<file_id>")
         def view_file(file_id: str):
             with sqlite3.connect(DB_PATH) as conn:
@@ -100,7 +105,7 @@ class CServerBL():
         self._api_thread: threading.Thread | None = None
         self._create_tables()
         self._ip: str = "0.0.0.0"  # Server IP address
-        self._port: int = 5050  # Server port
+        self._port: int = 7777  # Server port
         self._server_socket: socket.socket | None = None  # Main server socket
         self.logger_box = None
         self.clientHandlers: list[ClientHandler] = []  # List of client handler threads
@@ -157,9 +162,8 @@ class CServerBL():
                 self.clientHandlers.append(new_client_handler)
 
         except OSError as e:
-            pass  # Ignore OS errors
-        #except Exception as e:9
-        #    self.write_to_log(f"[ServerBL] Exception at start_server(): {e}")  # Log other exceptions
+            print(e)  # Ignore OS errors
+
     def stop_server(self) -> None:
         """Stopping the server
         """        
@@ -176,8 +180,8 @@ class CServerBL():
             self.clientHandlers = []  # Clear handler list
             
             if self._server_socket:
-                self.server_socket.close()  # Close server socket
-                self.server_socket = None
+                self._server_socket.close()  # Close server socket
+                self._server_socket = None
             self._event.clear()
             self.main_thread = None  # Clear main thread
             self.write_to_log("[CServerBL] Closed server!")  # Log closed
@@ -258,7 +262,7 @@ class ClientHandler(threading.Thread):
                 self.write_to_log("ClientHandler -> run()] client connection Aborted!")
                 break
             i+=1
-        self._disconnect()
+        self.disconnect()
     def _get_message(self) -> str | None:
         """getting message from client
         
@@ -278,7 +282,7 @@ class ClientHandler(threading.Thread):
         encrypted_data: bytes = self._fernet.encrypt(json.dumps(data).encode())
         header: bytes = struct.pack(FORMAT,len(encrypted_data)) # calculating header
         self.client.sendall(header + encrypted_data) # sending header with encrypted data
-    def _disconnect(self) -> None:
+    def disconnect(self) -> None:
         """
         Disconnects the client handler from the client.
         Closes the client socket and the database connection, and logs the disconnection.

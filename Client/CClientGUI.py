@@ -11,7 +11,7 @@ class App(ctk.CTk):
         super().__init__()
         print("Initializing App")
         self.title("SkyVault")
-        self.minsize(1300,750)
+        self.minsize(1100,700)
        
         self.frames: dict[str, ctk.CTkFrame] = {}
         try:

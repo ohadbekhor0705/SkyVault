@@ -13,7 +13,7 @@ from pathlib import Path
 DB_PATH = "./mydb.db"
 FORMAT = "!I"
 CHUNK_SIZE = 1024 *64  # 64 KB
-client_ids: list[int] = []
+connected_user_ids: list[int] = []
 BROWSER_DISPLAYABLE_MIME_MAP = {
     # Plain text / source
     ".txt":  "text/plain; charset=utf-8",
@@ -98,15 +98,37 @@ BROWSER_DISPLAYABLE_MIME_MAP = {
 }
 
 
-def get_encryption_key():
-    if not os.path.exists("./key.bin"):
-        key = Fernet.generate_key()
-        with open("./key.bin","wb") as f:
-            f.write(key)
-            return key
-    with open("./key.bin","rb") as f:
-        return f.read() 
-file_fernet = Fernet(get_encryption_key())
+# encryption_utils.py
+from dotenv import load_dotenv
+import os
+
+def load_encryption_key(env_path=".env", key_name="ENCRYPTION_KEY"):
+    """
+    Load the encryption key from a .env file.
+    
+    Args:
+        env_path (str): Path to the .env file.
+        key_name (str): The name of the key in the .env file.
+
+    Returns:
+        bytes: Encryption key as bytes.
+    
+    Raises:
+        FileNotFoundError: If the .env file does not exist.
+        ValueError: If the key is not found in the .env file.
+    """
+    # Load environment variables
+    if not os.path.exists(env_path):
+        raise FileNotFoundError(f"{env_path} does not exist.")
+    
+    load_dotenv(dotenv_path=env_path)
+    
+    key = os.getenv(key_name)
+    if not key:
+        raise ValueError(f"{key_name} not found in {env_path}.")
+    
+    return key.encode()  # Return as bytes
+file_fernet = Fernet(load_encryption_key())
 def username_exists(username: str, **kwargs) -> bool: 
     return kwargs["cursor"].execute("SELECT 1 FROM users WHERE username == ?",(username,)).fetchone() is not None
 @overload
@@ -400,20 +422,29 @@ def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> di
     match payload["cmd"]:
         case "login":
             if _user := getUser(payload):
-                response = {
-                    "status": True,
-                    "message": "Welcome back"+payload["username"]+"!",
-                    "folders": get_folders_by_id(_user["user_id"]),
-                    "curr_storage": _user["curr_storage"],
-                    "max_storage": _user["max_storage"],
-                }
-                ClientHandler.user_id = _user["user_id"]
+                if _user["user_id"] not in connected_user_ids:
+                    response = {
+                        "status": True,
+                        "message": "Welcome back"+payload["username"]+"!",
+                        "folders": get_folders_by_id(_user["user_id"]),
+                        "curr_storage": _user["curr_storage"],
+                        "max_storage": _user["max_storage"],
+                    }
+                    connected_user_ids.append(_user["user_id"])
+                    ClientHandler.user_id = _user["user_id"]
+                else:
+                    response = {"status": False, "message": "this accounts is already in use"}
             else:
                 response = {"status": False, "message": "Invalid username or password!"}
         case "register":
             response, user_id = InsertUser(payload)
             if response["status"]: 
                 ClientHandler.user_id = user_id
+                connected_user_ids.append(user_id)
+        case "logout":
+            if ClientHandler.user_id in connected_user_ids:
+                connected_user_ids.remove(ClientHandler.user_id)
+            response = response = {"status": True}
         case "upload":
             response = UploadFile(payload,ClientHandler)
         case "delete":

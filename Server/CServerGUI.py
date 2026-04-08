@@ -96,8 +96,8 @@ class ServerApp(ctk.CTk):
 
 if __name__ == "__main__":
     # CustomTkinter Theme Settings
-    ctk.set_appearance_mode("Dark")  # Modes: "System" (standard), "Dark", "Light"
-    ctk.set_default_color_theme("blue")  # Themes: "blue" (standard), "green", "dark-blue"
+    ctk.set_appearance_mode("Dark")
+    ctk.set_default_color_theme("blue")
 
     # Initialize Business Logic
     backend = CServerBL()

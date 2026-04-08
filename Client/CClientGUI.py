@@ -27,6 +27,7 @@ class App(ctk.CTk):
 
         self.home = HomePage(
             container,
+            self.client_bl,
             on_authenticate=lambda: self.auth.tkraise(),
             corner_radius=0,
             frames=self.frames,
@@ -48,3 +49,4 @@ if __name__ == "__main__":
     
     app = App()
     app.mainloop()
+    app.client_bl._send_message({"cmd","logout"})

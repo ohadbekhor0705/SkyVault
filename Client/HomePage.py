@@ -1,17 +1,19 @@
 import customtkinter as ctk
 from typing import Callable, Optional
-
+from threading import Thread
 
 class HomePage(ctk.CTkFrame):
 
     def __init__(
         self,
         master,
+        client_bl,
         on_authenticate: Optional[Callable[[], None]] = None,
         frames: dict[str, ctk.CTkFrame] = {},
         **kwargs
     ):
         super().__init__(master, **kwargs)
+        self.client_bl = client_bl
         self.frames = frames
 
         # Callback injected by the application controller
@@ -39,7 +41,7 @@ class HomePage(ctk.CTkFrame):
         hero.grid(row=0, column=0, sticky="ew", pady=(0, 40))
         hero.grid_columnconfigure(0, weight=1)
 
-        # Primary heading (large for 1080p+ screens)
+        # Primary heading 
         ctk.CTkLabel(
             hero,
             text="Welcome to SkyVault",
@@ -64,14 +66,16 @@ class HomePage(ctk.CTkFrame):
         cta_row.grid(row=2, column=0)
 
         # Primary action: authentication
-        ctk.CTkButton(
+        self.auth_button = ctk.CTkButton(
             cta_row,
             text="Sign in / Create account",
             width=260,
             height=48,
             font=ctk.CTkFont(size=16, weight="bold"),
-            command=self._go_auth
-        ).grid(row=0, column=0, padx=10)
+            command=self._go_auth,
+            state="disabled"
+        )
+        self.auth_button.grid(row=0, column=0, padx=10)
 
         # Secondary action (non-blocking)
         ctk.CTkButton(
@@ -129,6 +133,9 @@ class HomePage(ctk.CTkFrame):
             text_color=("gray40", "gray60")
         ).grid(row=0, column=0, pady=10)
 
+        self._process_tcp_connection()
+        
+
     # Feature card factory
 
     def _feature(self, parent, col, icon, title, text):
@@ -177,7 +184,11 @@ class HomePage(ctk.CTkFrame):
         Navigation is handled by the app controller.
         """
         if self.on_authenticate:
-            self.on_authenticate()
+            self.on_authenticate(
+            )
+    def _process_tcp_connection(self) -> None: 
+        self.auth_button.configure(state="disabled")
+        Thread(target=lambda: self.client_bl._process_handshake(auth_button=self.auth_button)).start()
 
 if __name__ == "__main__":
     app = ctk.CTk()

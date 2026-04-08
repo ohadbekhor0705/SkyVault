@@ -1,7 +1,7 @@
 import customtkinter as ctk
 import tkinter as tk
 from typing import Callable, Optional, Any
-from PIL import Image
+import pyperclip
 class FileRow(ctk.CTkFrame):
     def __init__(
         self,
@@ -27,13 +27,14 @@ class FileRow(ctk.CTkFrame):
         self.on_save = on_save
         self.on_share = on_share
         self.file_hash = file_hash
-        self.share_link = share_link
+        self.share_link: str = ""
+        self.has_share_link = share_link
 
         self.default_fg = self.cget("fg_color")
         self.hover_fg = ("#cfcfcf", "#3a3a3a")
 
 
-        self.check_var: ctk.BooleanVar = ctk.BooleanVar(value=share_link)
+        self.check_var: ctk.BooleanVar = ctk.BooleanVar(value=self.has_share_link)
 
         # Fixed Column Configuration for perfect alignment across rows
         self.grid_columnconfigure(0, minsize=300)  # Name column 
@@ -92,6 +93,8 @@ class FileRow(ctk.CTkFrame):
         self._bind_hover(self)
         for w in widgets:
             self._bind_hover(w)
+        self.bind("<Double-Button-1>", lambda: pyperclip.copy(self.share_link))
+
 
     # Hover handling
     def _bind_hover(self, widget):

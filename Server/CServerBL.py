@@ -84,7 +84,7 @@ class CServerBL():
                 disposition = f"inline; filename={filename}"
 
             def generate():
-                with open(f"StorageFiles/{file_id}.encrypted", "rb") as f:
+                with open(f"StorageFiles/{file_id}.bin", "rb") as f:
                     while (header := f.read(4)):
                         size = struct.unpack(">I", header)[0]
                         chunk = f.read(size)
@@ -261,7 +261,6 @@ class ClientHandler(threading.Thread):
             except ConnectionAbortedError:
                 self.write_to_log("ClientHandler -> run()] client connection Aborted!")
                 break
-            i+=1
         self.disconnect()
     def _get_message(self) -> str | None:
         """getting message from client

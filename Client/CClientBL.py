@@ -28,8 +28,7 @@ class CClientBL():
         self.max_storage: int = 0
         self.username: str = ""
         self.work_event: threading.Event = threading.Event()
-        self._process_handshake()
-    def _process_handshake(self) -> None:
+    def _process_handshake(self, **kwargs) -> None:
         while True:
             try:
                 print("Attempting to connect...")
@@ -55,6 +54,9 @@ class CClientBL():
         encrypted_session_key = server_public_key.encrypt(session_key,padding.OAEP(mgf=padding.MGF1(algorithm=hashes.SHA256()),algorithm=hashes.SHA256(),label=None))
         _client_socket.send(struct.pack(FORMAT,len(encrypted_session_key)) + encrypted_session_key) #sending session key
         self.fernet = fernet.Fernet(session_key)
+
+        if auth_button := kwargs.get("auth_button"):
+            auth_button.configure(state="normal")
     def connect(self, username: str, password: str, cmd: str) -> dict[str, Any]:
         """
         sends authentication credentials.
@@ -136,7 +138,7 @@ class CClientBL():
         finally:
             self.work_event.clear()
             return file_rows
-        
+       
     def sendfile(self,file: BinaryIO,folder_id:int ,callbacks: list[Callable], **kwargs) -> None:
         """Sending file to server.
 
@@ -259,7 +261,7 @@ class CClientBL():
 
         finally:
             self.work_event.clear()
-        
+
     def ReceiveFile(self, file_id:str, filename:str,save_path: str, **kwargs) -> None:
         self.work_event.set()
         header_field: CTkLabel =  kwargs["header_field"]
@@ -288,7 +290,7 @@ class CClientBL():
         """sending Encrypted message to server
 
         Args:
-            payload (dict[str,Any] | str): payload to send.
+            payload (dict[str,Any]): payload to send.
         """
         try:
             print(f"sending {payload}...")

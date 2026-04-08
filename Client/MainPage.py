@@ -1,6 +1,7 @@
 import itertools
+import socket
 from time import sleep
-from typing import Callable
+from typing import Callable, NoReturn
 from CClientBL import CClientBL
 import customtkinter as ctk
 from FileRow import FileRow
@@ -11,18 +12,16 @@ from datetime import datetime, date
 from PIL import Image
 
 
-def load_icon(path):
+def load_icon(path, size: tuple[int, int] = (20,20)):
     img = Image.open(path)
-    return ctk.CTkImage(img, img)
+    return ctk.CTkImage(img, img, size)
 
 icons: dict[str, ctk.CTkImage] = {
-    "share": load_icon("./icons/share.png"),
-    "edit": load_icon("./icons/edit.png"),
     "upload": load_icon("./icons/cloud_upload.png"),
     "delete": load_icon("./icons/delete.png"),
     "new_folder": load_icon("./icons/create_new_folder.png"),
-    "download": load_icon("./icons/download.png"),
-    "cloud_lock": load_icon("./icons/cloud_lock.png")
+    "cloud_lock": load_icon("./icons/cloud_lock.png"),
+    "logout": load_icon("./icons/logout.png",size=(15,15))
 }
 ctk.set_appearance_mode("light")
 ctk.FontManager.load_font("./fonts/Arial-VariableFont_wght.ttf")
@@ -49,16 +48,27 @@ class MainFrame(ctk.CTkFrame):
 
         self.grid_columnconfigure(0, weight=0, minsize=275)
         self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(3, weight=1)
+        self.grid_rowconfigure(4, weight=1)
         
         self.selected_folder_id: str = ""
+        self._disconnect_button = ctk.CTkButton(
+            self,
+            text="Logout",
+            fg_color="red",
+            hover_color=None,
+            text_color="white",
+            image=icons["logout"],
+            font=ctk.CTkFont("Outfit",15),
+            command=self.on_click_logout
+        )
+        self._disconnect_button.grid(row=0, column=0, sticky="e", pady=9,padx=9, columnspan=2)
 
         self.header = ctk.CTkLabel(
             self,
             text="",
-            font=ctk.CTkFont("Arial",20)
+            font=ctk.CTkFont("Outfit",20)
         )
-        self.header.grid(row=0, column=0, sticky="ew", pady=9,padx=9, columnspan=2)
+        self.header.grid(row=1, column=0, sticky="ew", pady=9,padx=9, columnspan=2)
         
         self.upload_button = ctk.CTkButton( # Upload button
             self,
@@ -73,16 +83,16 @@ class MainFrame(ctk.CTkFrame):
             text="",
             image=icons["new_folder"],
             compound="right",
-            font = ctk.CTkFont("Arial",20),
+            font = ctk.CTkFont("Outfit",20),
             command=self.on_click_create_folder
         )
         self.progress_bar = ctk.CTkProgressBar(self)
 
-        self.progress_bar.grid(row=1, column=0, sticky="nsew",pady=9,padx=9, columnspan=2)
-        self.upload_button.grid(row=2, column=1, sticky="nsew",pady=9,padx=9)
-        self.create_folder_button.grid(row=2, column=0, sticky="nsew",pady=9,padx=9)
-        self.folders_frame.grid(row=3, column=0, sticky="nsew",pady=7,padx=9)
-        self.files_frame.grid(row=3, column=1, sticky="nsew", padx=3,pady=7)
+        self.progress_bar.grid(row=2, column=0, sticky="nsew",pady=9,padx=9, columnspan=2)
+        self.upload_button.grid(row=3, column=1, sticky="nsew",pady=9,padx=9)
+        self.create_folder_button.grid(row=3, column=0, sticky="nsew",pady=9,padx=9)
+        self.folders_frame.grid(row=4, column=0, sticky="nsew",pady=7,padx=9)
+        self.files_frame.grid(row=4, column=1, sticky="nsew", padx=3,pady=7)
 
 
         if client_bl:
@@ -93,15 +103,8 @@ class MainFrame(ctk.CTkFrame):
                 self.folder_rows[folder_row.folder_id] = folder_row
                 if f["root"]:
                     self.selected_folder_id = f["folder_id"]
-
-        else:
-            folder_row = FolderRow(self.folders_frame,self, "root","id",None, True)
-            self.selected_folder_id = folder_row.folder_id
-            folder_row.grid(column=0, row=0, sticky= "nsew", padx=12, pady=6)
-            for i in range(1,15):
-                folder_row = FolderRow(self.folders_frame,self, "folder_name","folder_id",self.client_bl, False)
-                folder_row.grid(column=0, row=i, sticky= "nsew", padx=12, pady=6)
-                self.folder_rows[folder_row.folder_id] = folder_row
+            
+        threading.Thread(target=self.check_connection, daemon=True).start()
 
 
             
@@ -167,9 +170,11 @@ class MainFrame(ctk.CTkFrame):
             self.client_bl._send_message({"cmd": "handlelink", "action": action,"file_id": row.file_id})
             response = self.client_bl._get_message()
             if response["status"]:
-                row.share_link = not row.check_var.get()
+                row.has_share_link = not row.check_var.get()
                 if action == "enable":
-                    pyperclip.copy(response["link"])
+                    link = response["link"]
+                    row.share_link = link
+                    pyperclip.copy(link)
             else:
                 row.check_var.set(not row.check_var.get())
             self.header.configure(text=response["message"])
@@ -198,10 +203,39 @@ class MainFrame(ctk.CTkFrame):
                 self.header.configure(text=c)
                 sleep(0.5)
             else: break
+    def on_click_logout(self):
+        self.client_bl._send_message({"cmd":"logout"})
+        self.client_bl.work_event.set()
+        if response := self.client_bl._get_message():
+            if response["status"]:
+                self.frames["Home"].tkraise()
+                del self.frames["Main"]
+                self.destroy()
+                del self
+    def check_connection(self) -> NoReturn:
+        try:
+            while True:
+                print("checking connection....")
+                if not self.client_bl.work_event.is_set():
+                    self.client_bl._conn.send(b'')
+                sleep(2.5)
+        except (socket.error, ConnectionAbortedError, ConnectionError, ConnectionResetError):
+            self.frames["Home"].tkraise()
+            self.frames["Home"]._process_tcp_connection()
+            del self.frames["Main"]
+            self.destroy()
+            del self
+            
 
 
 class FolderRow(ctk.CTkFrame):
-    def __init__(self, master: ctk.CTkScrollableFrame,main_frame: MainFrame, folder_name: str ,folder_id: str, client_bl: CClientBL, is_root: bool = False, **kwargs):
+    def __init__(self,
+        master: ctk.CTkScrollableFrame,main_frame: MainFrame,
+        folder_name: str ,folder_id: str,
+        client_bl: CClientBL,
+        is_root: bool = False,
+        **kwargs
+    ):
         
         super().__init__(master,**kwargs)
         self.client_bl = client_bl
@@ -220,7 +254,11 @@ class FolderRow(ctk.CTkFrame):
         Padx = 12
         Pady = 6
 
-        self.folder_entry = ctk.CTkEntry(self, border_width=0, font=ctk.CTkFont("Arial",20), fg_color="transparent")
+        self.folder_entry = ctk.CTkEntry(self,
+            border_width=0,
+            font=ctk.CTkFont("Outfit",20),
+            fg_color="transparent"
+        )
         self.folder_entry.insert(0, folder_name)
         self.folder_entry.configure(state="disabled")
 
@@ -230,7 +268,14 @@ class FolderRow(ctk.CTkFrame):
 
         # self.bind("<Button-1>", lambda event: threading.Thread(target=self.on_click).start())
         if not self.is_root:
-            self.delete_button = ctk.CTkButton(self,text="", image=icons["delete"], command=self.on_click_delete, width=20, fg_color="red")
+            self.delete_button = ctk.CTkButton(
+                self,
+                text="",
+                image=icons["delete"],
+                command=self.on_click_delete,
+                width=20,
+                fg_color="red"
+            )
             self.delete_button.grid(row=0,column=1,sticky="nsew" ,padx=0,pady=Pady)
 
             self.folder_entry.bind("<Double-Button-1>", self._on_double_click)

@@ -1,48 +1,107 @@
-import customtkinter as CTk
-from tkinter import ttk
-from CServerBL import CServerBL
+import customtkinter as ctk
 import threading
-from protocol2 import *
-class CServerGUI(CServerBL):
-    def __init__(self) -> None:
+import sys
+from CServerBL import CServerBL
+class ServerApp(ctk.CTk):
+    def __init__(self, server_bl: CServerBL):
         super().__init__()
-        CTk.set_appearance_mode("Dark")
-        self.master = CTk.CTk()
-        self.FONT: tuple[str, int] = ("Helvetica",24)
-        self._ipLabel = None
-        self._portLabel = None
-        self.serverSwitch = None
-        self.height, self.width = 750, 1300
-        self.create_ui()   
-    
-    def create_ui(self) -> None:
-        self.master.geometry(f"{self.width}x{self.height}")
-        self.master.resizable(False, False)
-        self.master.title("Server GUI")
+        
+        self.server_bl = server_bl
+        
+        # Window configuration
+        self.title("Secure File Server - Control Panel")
+        self.geometry("700x450")
+        self.minsize(500, 300)
+        
+        # Grid layout (1 column, 2 rows)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
 
-        CTk.CTkLabel(self.master, text= "Server Graphical User Interface",anchor="center",font=self.FONT).place(relx = 0, rely=0.1, relheight=0.06, relwidth=1)
+        # --- Top Frame: Controls ---
+        self.controls_frame = ctk.CTkFrame(self, corner_radius=10)
+        self.controls_frame.grid(row=0, column=0, padx=20, pady=(20, 10), sticky="ew")
+        
+        # Start Button
+        self.start_btn = ctk.CTkButton(
+            self.controls_frame, 
+            text="Start Server", 
+            fg_color="green", 
+            hover_color="darkgreen",
+            command=self.start_server_thread
+        )
+        self.start_btn.pack(side="left", padx=20, pady=15)
 
-        self.serverSwitch = CTk.CTkSwitch(self.master, variable=CTk.StringVar(value="off"),switch_width=250,switch_height=50, text= "Toggle on/off",
-                                          font=self.FONT,onvalue="on", offvalue="off", command=self.toggle_server )
-        self.serverSwitch.place(relx = 0.05, rely = 0.25)
+        # Stop Button
+        self.stop_btn = ctk.CTkButton(
+            self.controls_frame, 
+            text="Stop Server", 
+            fg_color="red", 
+            hover_color="darkred",
+            state="disabled",
+            command=self.stop_server
+        )
+        self.stop_btn.pack(side="left", padx=0, pady=15)
 
-        self.logger_box = CTk.CTkTextbox(self.master,font=("consolas",12),text_color="#34AA4E")
-        self.logger_box.place(relx=0.05, rely=0.34,relheight=0.6,relwidth=0.9)
-    
-    def toggle_server(self) -> None:
-        if self.serverSwitch.get() == "on":
-            self.write_to_log("on")
-            self.main_thread = threading.Thread(target=self.start_server, daemon=True)
-            self.main_thread.start()
-        if self.serverSwitch.get() == "off":
-            self.write_to_log("off")
-            self.stop_server()
+        # --- Bottom Frame: Logging ---
+        self.log_frame = ctk.CTkFrame(self, corner_radius=10)
+        self.log_frame.grid(row=1, column=0, padx=20, pady=(0, 20), sticky="nsew")
+        self.log_frame.grid_columnconfigure(0, weight=1)
+        self.log_frame.grid_rowconfigure(1, weight=1)
 
-    def run(self) -> None:
-        self.master.mainloop()
+        self.log_label = ctk.CTkLabel(self.log_frame, text="Server Logs", font=ctk.CTkFont(weight="bold"))
+        self.log_label.grid(row=0, column=0, padx=10, pady=(10, 0), sticky="w")
 
+        # Textbox acting as logger_box
+        self.log_box = ctk.CTkTextbox(self.log_frame, wrap="word", state="normal")
+        self.log_box.grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
+
+        # Attach the textbox to the BL's logger attribute
+        # We override the default insert to also auto-scroll to the bottom
+        self.server_bl.logger_box = self
+
+        # Handle window closure gracefully
+        self.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def insert(self, index, text):
+        """
+        Wrapper method to satisfy self.logger_box.insert("end", msg) in CServerBL.
+        It writes to the CTkTextbox and auto-scrolls to the latest message.
+        """
+        self.log_box.insert(index, text)
+        self.log_box.see("end")  # Auto-scroll
+
+    def start_server_thread(self):
+        """Starts the server in a daemon thread to prevent freezing the GUI loop."""
+        self.start_btn.configure(state="disabled")
+        self.stop_btn.configure(state="normal")
+        
+        # Run start_server in the background
+        self.server_thread = threading.Thread(target=self.server_bl.start_server, daemon=True)
+        self.server_thread.start()
+
+    def stop_server(self):
+        """Stops the server and resets the UI buttons."""
+        self.stop_btn.configure(state="disabled")
+        
+        # Call the BL stop method
+        self.server_bl.stop_server()
+        
+        self.start_btn.configure(state="normal")
+
+    def on_closing(self):
+        """Ensures sockets and threads are cleaned up when clicking the 'X'."""
+        self.server_bl.stop_server()
+        self.destroy()
+        sys.exit(0)
 
 if __name__ == "__main__":
-    App = CServerGUI()
-    App.run()
-    App.stop_server()
+    # CustomTkinter Theme Settings
+    ctk.set_appearance_mode("Dark")
+    ctk.set_default_color_theme("blue")
+
+    # Initialize Business Logic
+    backend = CServerBL()
+
+    # Initialize and run GUI
+    app = ServerApp(backend)
+    app.mainloop()

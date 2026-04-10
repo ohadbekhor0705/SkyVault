@@ -1,15 +1,14 @@
 import customtkinter as ctk
 import tkinter as tk
 from typing import Callable, Optional, Any
-from PIL import Image
-import CTkMenuBar
+import pyperclip
 class FileRow(ctk.CTkFrame):
     def __init__(
         self,
         master,
         file_id: str,
         file_name: str,
-        file_size: str,
+        file_size: int,
         date_modified: str,
         file_hash: bytes,
         share_link: bool,
@@ -28,11 +27,14 @@ class FileRow(ctk.CTkFrame):
         self.on_save = on_save
         self.on_share = on_share
         self.file_hash = file_hash
-        self.share_link = share_link
+        self.share_link: str = ""
+        self.has_share_link = share_link
 
         self.default_fg = self.cget("fg_color")
         self.hover_fg = ("#cfcfcf", "#3a3a3a")
-        self.check_var: ctk.BooleanVar = ctk.BooleanVar(value=share_link)
+
+
+        self.check_var: ctk.BooleanVar = ctk.BooleanVar(value=self.has_share_link)
 
         # Fixed Column Configuration for perfect alignment across rows
         self.grid_columnconfigure(0, minsize=300)  # Name column 
@@ -43,7 +45,7 @@ class FileRow(ctk.CTkFrame):
         self.grid_columnconfigure(5, weight=0)      # Checkbox
 
         # Widgets - set fg_color to transparent so they inherit the Frame's hover color
-        self.name_entry = ctk.CTkEntry(self, border_width=0, fg_color="transparent")
+        self.name_entry = ctk.CTkEntry(self, border_width=0, fg_color="transparent", font=ctk.CTkFont("Outfit"))
         self.name_entry.insert(0, file_name)
         self.name_entry.configure(state="disabled")
         self.size_label = ctk.CTkLabel(self, text=file_size, anchor="w", fg_color="transparent")
@@ -60,21 +62,22 @@ class FileRow(ctk.CTkFrame):
         self.menu_button.grid(row=0, column=4, padx=Padx, pady=Pady, sticky="e")
         self.link_checkbox.grid(row=0, column=5, padx=Padx, pady=Pady, sticky="e")
 
-        # Context menu
-        bg_color = "#2b2b2b"
-        fg_color = "#ffffff"
-        select_color = "#3d3d3d"
+        # Context menu with Windows-11 styling\n        
+        BG_COLOR = "#ffffff"         # Pure white menu background\n        
+        FG_COLOR = "#000000"         # Black text
+        ACTIVE_BG = "#e5f1fb"        # Soft Windows-11 style light blue for hover
+        ACTIVE_FG = "#000000"        # Keep text black on hover
         self.menu = tk.Menu(
-            self,
-            tearoff=0,
-            bg=bg_color,
-            fg=fg_color,
-            activebackground=select_color,
-            activeforeground=bg_color,
+            self, 
+            tearoff=0, 
+            font=("Arial", 20), 
+            bg=BG_COLOR, 
+            fg=FG_COLOR,
+            activebackground=ACTIVE_BG, 
+            activeforeground=ACTIVE_FG,
+            relief="flat", 
             bd=0,
-            border=0,
-            borderwidth=0,
-            font=ctk.CTkFont("Arial", 16)
+            activeborderwidth=0
         )
 
         self.name_entry.bind("<Return>", self._on_send)
@@ -83,16 +86,20 @@ class FileRow(ctk.CTkFrame):
 
         self.menu.add_command(label="Save file", command=self._handle_save)
         self.menu.add_separator()
-        self.menu.add_command(label="Delete file", command=self._handle_delete)
-        self.menu.add_command(label="Rename file", command=self._on_edit)
+        self.menu.add_command(label="Delete", command=self._handle_delete)
+        self.menu.add_command(label="Rename", command=self._on_edit)
+        self.menu.add_command(label="Copy link", command=lambda: pyperclip.copy(f"{self.client_bl.server_ip}/view_file/{self.file_id}"))
+
         # Hover bindings
         widgets = (self.name_entry, self.size_label, self.date_label, self.menu_button, self.link_checkbox)
         self._bind_hover(self)
         for w in widgets:
             self._bind_hover(w)
 
+
     # Hover handling
     def _bind_hover(self, widget):
+        """Bind hover events to a widget to trigger enter/leave color changes."""
         widget.bind("<Enter>", self._on_enter)
         widget.bind("<Leave>", self._on_leave)
 
@@ -148,28 +155,3 @@ class FileRow(ctk.CTkFrame):
         self.name_entry.delete(0, "end")
         self.name_entry.insert(0, self.filename)
         self.name_entry.configure(state="disabled", border_width=0)
-
-
-
-class CTKMenu(ctk.CTkScrollableFrame):
-    def __init__(self, master, **kwargs):
-        super().__init__(master, **kwargs)
-        self.__buttons: list[ctk.CTkButton] = []
-        self.default_fg = self.cget("fg_color")
-        self.hover_fg = ("#cfcfcf", "#3a3a3a")
-        self.__last_row_index = 0
-
-        self.grid_columnconfigure(0, minsize=50)
-    def add_command(self, label="", command: Callable[..., Any] = None):
-        new_btn_command = ctk.CTkButton(
-            self,
-            command=command,
-            fg_color=self.default_fg,
-            hover_color=self.hover_fg,
-            text=label,
-            anchor="center",
-            font=ctk.CTkFont("Helvetica",16)
-        )
-        new_btn_command.grid(row=self.__last_row_index, column=0, sticky="ew")
-        self.__last_row_index+=1
-        self.__buttons.append(new_btn_command)

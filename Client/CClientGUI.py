@@ -11,7 +11,7 @@ class App(ctk.CTk):
         super().__init__()
         print("Initializing App")
         self.title("SkyVault")
-        self.minsize(1300,750)
+        self.minsize(1100,700)
        
         self.frames: dict[str, ctk.CTkFrame] = {}
         try:
@@ -27,6 +27,7 @@ class App(ctk.CTk):
 
         self.home = HomePage(
             container,
+            self.client_bl,
             on_authenticate=lambda: self.auth.tkraise(),
             corner_radius=0,
             frames=self.frames,
@@ -44,7 +45,7 @@ class App(ctk.CTk):
             page.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self.home.tkraise()
-if __name__ == "__main__": 
-    
+if __name__ == "__main__":
     app = App()
     app.mainloop()
+    app.client_bl._send_message({"cmd":"logout"})

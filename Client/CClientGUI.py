@@ -45,8 +45,7 @@ class App(ctk.CTk):
             page.place(relx=0, rely=0, relwidth=1, relheight=1)
 
         self.home.tkraise()
-if __name__ == "__main__": 
-    
+if __name__ == "__main__":
     app = App()
     app.mainloop()
-    app.client_bl._send_message({"cmd","logout"})
+    app.client_bl._send_message({"cmd":"logout"})

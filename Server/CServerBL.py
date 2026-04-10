@@ -47,7 +47,7 @@ class CServerBL():
                 CREATE TABLE IF NOT EXISTS folders(
                     folder_id TEXT PRIMARY KEY,
                     folder_name TEXT,
-                    root  BOOLEAN NOT NULL DEFAULT 0,
+                    is_system BOOLEAN NOT NULL DEFAULT 0,
                     user_id INTEGER,
                     FOREIGN KEY(user_id) REFERENCES users(user_id)
                 )
@@ -119,9 +119,7 @@ class CServerBL():
         self.public_key = self.private_key.public_key()
 
         # Export public key to send to client
-        self.pem_public = self.public_key.public_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PublicFormat.SubjectPublicKeyInfo)
+        self.pem_public = self.public_key.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo)
 
         self.app = Flask(__name__)
         self._register_routes()
@@ -170,7 +168,6 @@ class CServerBL():
         self.write_to_log(f"Shuting down server...")  # Log stop
         try:
             self._event.clear()  # Clear event flag
-            self._api_thread = None
             self.write_to_log(f"[ServerBL] cleared flag!")
             for client_handler in self.clientHandlers:
                 self.write_to_log(f"[SERVER] Disconnecting {client_handler}....")
@@ -242,10 +239,8 @@ class ClientHandler(threading.Thread):
 
         # Server functionality here
         self.write_to_log(f"[+] client connection! {self} from device: {socket.gethostname()}")
-        self.write_to_log(f"[SERVER] {threading.active_count() - 2} Are currently connected!")
-        i = 1
+        self.write_to_log(f"[SERVER] {threading.active_count() - 3} Are currently connected!")
         while self._event.is_set():
-            print(i)
             try:
                 json_string: str | None = self._get_message()
                 if json_string:
@@ -287,6 +282,10 @@ class ClientHandler(threading.Thread):
         Closes the client socket and the database connection, and logs the disconnection.
         """
         self.write_to_log(f"[SERVER-BL]: {self} disconnect requested")
+        try:
+            connected_user_ids.remove(self.user_id)
+        except ValueError:
+            pass
         if self.client:
             try:
                 # Attempt to shut down the socket for both reading and writing

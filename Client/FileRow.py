@@ -62,21 +62,22 @@ class FileRow(ctk.CTkFrame):
         self.menu_button.grid(row=0, column=4, padx=Padx, pady=Pady, sticky="e")
         self.link_checkbox.grid(row=0, column=5, padx=Padx, pady=Pady, sticky="e")
 
-        # Context menu
-        bg_color = "#2b2b2b"
-        fg_color = "#ffffff"
-        select_color = "#3d3d3d"
+        # Context menu with Windows-11 styling\n        
+        BG_COLOR = "#ffffff"         # Pure white menu background\n        
+        FG_COLOR = "#000000"         # Black text
+        ACTIVE_BG = "#e5f1fb"        # Soft Windows-11 style light blue for hover
+        ACTIVE_FG = "#000000"        # Keep text black on hover
         self.menu = tk.Menu(
-            self,
-            tearoff=0,
-            bg=bg_color,
-            fg=fg_color,
-            activebackground=select_color,
-            activeforeground=bg_color,
+            self, 
+            tearoff=0, 
+            font=("Arial", 20), 
+            bg=BG_COLOR, 
+            fg=FG_COLOR,
+            activebackground=ACTIVE_BG, 
+            activeforeground=ACTIVE_FG,
+            relief="flat", 
             bd=0,
-            border=0,
-            borderwidth=0,
-            font=ctk.CTkFont("Outfit", 16)
+            activeborderwidth=0
         )
 
         self.name_entry.bind("<Return>", self._on_send)
@@ -87,17 +88,18 @@ class FileRow(ctk.CTkFrame):
         self.menu.add_separator()
         self.menu.add_command(label="Delete", command=self._handle_delete)
         self.menu.add_command(label="Rename", command=self._on_edit)
+        self.menu.add_command(label="Copy link", command=lambda: pyperclip.copy(f"{self.client_bl.server_ip}/view_file/{self.file_id}"))
 
         # Hover bindings
         widgets = (self.name_entry, self.size_label, self.date_label, self.menu_button, self.link_checkbox)
         self._bind_hover(self)
         for w in widgets:
             self._bind_hover(w)
-        self.bind("<Double-Button-1>", lambda: pyperclip.copy(self.share_link))
 
 
     # Hover handling
     def _bind_hover(self, widget):
+        """Bind hover events to a widget to trigger enter/leave color changes."""
         widget.bind("<Enter>", self._on_enter)
         widget.bind("<Leave>", self._on_leave)
 

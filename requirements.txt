@@ -3,8 +3,10 @@ cryptography
 uuid
 bcrypt
 uuid6
+
 pyopenssl
 flask
 pyperclip
 pillow
 CTkMenuBar
+dotenv

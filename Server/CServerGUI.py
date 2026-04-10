@@ -3,7 +3,7 @@ import threading
 import sys
 from CServerBL import CServerBL
 class ServerApp(ctk.CTk):
-    def __init__(self, server_bl):
+    def __init__(self, server_bl: CServerBL):
         super().__init__()
         
         self.server_bl = server_bl

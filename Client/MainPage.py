@@ -218,12 +218,13 @@ class MainFrame(ctk.CTkFrame):
             return
         if self.client_bl._send_message({"cmd": "create_folder"}):
             response = self.client_bl._get_message()
-            if response["status"]:
-                folder_id: str = response["folder_id"]
-                new_folder = FolderRow(self.folders_frame, self,"", folder_id, self.client_bl, False)
-                self.folder_rows[folder_id] = new_folder
-                new_folder.grid(column=0, row = self.folders_frame.grid_size()[1],sticky= "nsew", padx=12, pady=6)
-                new_folder._on_double_click()
+            if response:
+                if response["status"]:
+                    folder_id: str = response["folder_id"]
+                    new_folder = FolderRow(self.folders_frame, self,"", folder_id, self.client_bl, False)
+                    self.folder_rows[folder_id] = new_folder
+                    new_folder.grid(column=0, row = self.folders_frame.grid_size()[1],sticky= "nsew", padx=12, pady=6)
+                    new_folder._on_double_click()
     
     def clear_file_rows(self):
         """Remove all file rows from the files frame."""
@@ -238,51 +239,52 @@ class MainFrame(ctk.CTkFrame):
             if self.client_bl.work_event.is_set():
                 self.header.configure(text=c)
                 sleep(0.5)
-            else: break
+            else: 
+                break
     
     def on_click_logout(self):
         """Handle logout button click."""
         self.client_bl._send_message({"cmd":"logout"})
         self.client_bl.work_event.set()
         if response := self.client_bl._get_message():
-            if response["status"]:
-                # clear working flag to stop any ongoing tasks
-                self.client_bl.work_event.clear()
+            def logout_cleanup():
+                if response["status"]:
+                    self.client_bl.work_event.clear()
+                    # Clean up Main frame safely
+                    if "Main" in self.frames:
+                        self.frames["Main"].destroy()
+                        del self.frames["Main"]
+                    # Raise Home page
+                    self.frames["Home"].tkraise()
+                    # Optionally restart connection flow
+            self.after(100, logout_cleanup)
 
-                #  Destroy UI widgets properly 
-                self.frames["Main"].destroy()
-                del self.frames["Main"]
-                # Switch frame if needed
-                self.frames["Home"].tkraise()
-                # Establish new connection to server
-                self.frames["Home"]._process_tcp_connection()
-                # Destroy the root/window LAST
-                self.destroy()
+            self.frames["Home"]._process_tcp_connection()
     
     def check_connection(self) -> NoReturn:
         """Monitor server connection health."""
         try:
             while True:
-                if not self.client_bl.work_event.is_set():
-                    data = self.client_bl._conn.recv(1)
-                    if not data:
-                        raise ConnectionResetError()
-                    print("Connection healthy")
-                sleep(1)
+                if not self.client_bl.work_event.is_set(): 
+                    self.client_bl._send_message({"cmd": "ping"})
+                    if response := self.client_bl._get_message():
+                        if response["status"]:
+                            print("Connection healthy") 
+                    else:
+                        raise ConnectionError("No response to ping")
+                sleep(2)
         except (socket.error, ConnectionAbortedError, ConnectionError, ConnectionResetError, BrokenPipeError):
-            # clear working flag to stop any ongoing tasks
-                self.client_bl.work_event.clear()
-
-                # Destroy UI widgets properly 
-                self.frames["Main"].destroy()
-                del self.frames["Main"]
-                #  Switch frame if needed
-                self.frames["Home"].tkraise()
-                #  Destroy the root/window LAST
-                self.destroy()
-                # Establish new connection to server
-                self.frames["Home"]._process_tcp_connection()
-            
+            def logout_cleanup():
+                    self.client_bl.work_event.clear()
+                    # Clean up Main frame safely
+                    if "Main" in self.frames:
+                        self.frames["Main"].destroy()
+                        del self.frames["Main"]
+                    # Raise Home page
+                    self.frames["Home"].tkraise()
+                    # Optionally restart connection flow
+            self.after(100, logout_cleanup)
+            self.frames["Home"]._process_tcp_connection()
             
 
 

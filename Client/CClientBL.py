@@ -62,9 +62,9 @@ class CClientBL():
             sleep(0.5)
 
         # Receive server's public key
-        key_len_recv = _client_socket.recv(4)
+        key_len_recv = self._recv_exact(4)
         len_pem_public: int = struct.unpack(FORMAT, key_len_recv)[0]
-        pem_public = _client_socket.recv(len_pem_public)
+        pem_public = self._recv_exact(len_pem_public)
         public_key = server_public_key = serialization.load_pem_public_key(pem_public)
         
         # Generate session key and encrypt it with server's public key
@@ -80,7 +80,7 @@ class CClientBL():
         )
         
         # Send encrypted session key to server
-        _client_socket.send(struct.pack(FORMAT, len(encrypted_session_key)) + encrypted_session_key)
+        _client_socket.sendall(struct.pack(FORMAT, len(encrypted_session_key)) + encrypted_session_key)
         self.fernet = fernet.Fernet(session_key)
 
         # Enable authentication button if provided
@@ -243,7 +243,7 @@ class CClientBL():
 
             # Receive server response
             response = self._get_message()
-
+            print(response)
             if response["status"]:
                 # Update storage and create new FileRow
                 self.current_storage += file_size
@@ -272,6 +272,8 @@ class CClientBL():
                 
         except (ConnectionResetError, ConnectionAbortedError, ConnectionError):
             header_field.configure(text="Something went wrong with the server! Couldn't fulfill the request.", text_color="red")
+        except FileNotFoundError:
+            header_field.configure(text="The selected file was not found. Please try again.", text_color="red")
         finally:
             self.work_event.clear()
 
@@ -450,10 +452,11 @@ class CClientBL():
         """ 
         try:
             # Receive message length and payload
-            len_bytes: bytes = self._conn.recv(4)
-            encrypted_payload = self._conn.recv(struct.unpack(FORMAT, len_bytes)[0])
+            len_bytes: bytes = self._recv_exact(4)
+            print(f"Received header: {struct.unpack(FORMAT, len_bytes)[0]}")
+            encrypted_payload = self._recv_exact(struct.unpack(FORMAT, len_bytes)[0])
             return json.loads(self.fernet.decrypt(encrypted_payload).decode())
-        except (ConnectionAbortedError, ConnectionResetError):
+        except (ConnectionAbortedError, ConnectionResetError, ConnectionError):
             return None
 
     def _recv_exact(self, size: int) -> bytes:

@@ -247,6 +247,7 @@ class ClientHandler(threading.Thread):
                     request: dict[str, Any] = json.loads(json_string)
                     response: dict[str, Any] | None = handle_client_request(request,self)
                     if response:
+                        print(response)
                         self._send_message(response)
                 else:  
                     break
@@ -275,6 +276,7 @@ class ClientHandler(threading.Thread):
         print(data)
         encrypted_data: bytes = self._fernet.encrypt(json.dumps(data).encode())
         header: bytes = struct.pack(FORMAT,len(encrypted_data)) # calculating header
+        print(f"Sending header: {struct.unpack(FORMAT, header)[0]}")  # Debug print for header length
         self.client.sendall(header + encrypted_data) # sending header with encrypted data
     def disconnect(self) -> None:
         """

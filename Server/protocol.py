@@ -109,7 +109,7 @@ BROWSER_DISPLAYABLE_MIME_MAP = {
 }
 
 
-# encryption_utils.py
+# ==================== Encryption Utilities ====================
 from dotenv import load_dotenv
 import os
 
@@ -144,8 +144,10 @@ def load_encryption_key(env_path=".env", key_name="ENCRYPTION_KEY"):
 file_fernet = Fernet(load_encryption_key())
 
 # ==================== User Management Functions ====================
-def username_exists(username: str, **kwargs) -> bool: 
+def username_exists(username: str, **kwargs) -> bool:
+    # Check if username already exists in database
     return kwargs["cursor"].execute("SELECT 1 FROM users WHERE username == ?",(username,)).fetchone() is not None
+
 @overload
 def getUser(login: int) -> dict[str, Any] | None:
     ...
@@ -170,21 +172,25 @@ def getUser(login: dict | int) -> dict[str, Any] | None:
         cur = conn.cursor()
         res: dict[str, Any] | None = None
         if isinstance(login, int):
+            # Fetch user by ID
             values = cur.execute("SELECT * FROM users WHERE user_id == ?",(login,)).fetchone()
             if not values:
                 return None
         if isinstance(login, dict):
+            # Fetch user by username
             values = cur.execute("SELECT * FROM users WHERE username == :username AND disabled = 0",login).fetchone()
             if not values:
                 return None
+            # Verify password hash
             elif not bcrypt.checkpw(login["password"].encode(),values[2]):
-                # Password mismatch: increment failed login attempts or disable account
+                # Increment failed attempts or disable account
                 if values[5] < 3:
                     cur.execute("UPDATE users SET tries = tries + 1 WHERE username = :username",login)
                 else:
-                    cur.execute("UPDATE users SET disabled = 1 WHERE username = := username",login)
+                    cur.execute("UPDATE users SET disabled = 1 WHERE username = :username",login)
                 return None
     return dict(zip(keys, values))
+
 def InsertUser(user: Dict[str,Any]) -> tuple[dict[str, Any], None] | tuple[dict[str, Any], int]:
     """Insert a new user into the database.
 
@@ -214,39 +220,44 @@ def InsertUser(user: Dict[str,Any]) -> tuple[dict[str, Any], None] | tuple[dict[
         conn.commit()
     # Return success response with user folders and default max storage (1 GB)
     return {"status": True,"message": "Welcome to skyVault!","curr_storage": 0,"max_storage": 1073741824, "folders": get_folders_by_id(user_id)}, user_id
-def files_by_id(uid: int)   -> list[dict[str, Any]]:
+
+def files_by_id(uid: int) -> list[dict[str, Any]]:
     """Retrieve all files for a specific user."""
     with sqlite3.connect("./mydb.db") as conn:
         cur = conn.cursor()
+        # Fetch all files for the user
         files = cur.execute("SELECT * FROM files WHERE user_id = ?",(uid,)).fetchall()
         keys: list[str] = ["file_id", "filename", "size","modified","file_hash" ,"user_id","folder_id","share_link"]
         return [dict(zip(keys, file)) for file in files]
+
 def get_folders_by_id(uid: int):
     """Retrieve all folders for a specific user."""
     keys = ["folder_id","folder_name","is_system", "user_id"]
     with sqlite3.connect("./mydb.db") as conn:
         cur = conn.cursor()
+        # Fetch all folders for the user
         folders = cur.execute("SELECT * FROM folders WHERE user_id = ?",(uid,)).fetchall()
-        return [dict(zip(keys, folder)) for folder in folders]     
+        return [dict(zip(keys, folder)) for folder in folders]
+
 def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
     """Uploading a file to cloud
     Args:
-        payload (dict[str, Any]): Containing 
-        client (socket.socket): client socket object
-        user (User): client user information
+        payload (dict[str, Any]): Containing file metadata
+        ClientHandler: Handler object with client socket and encryption key
 
     Returns:
         dict[str,Any]: status response from server to client
     """
     fernet = ClientHandler._fernet
     client: socket.socket = ClientHandler.client
-    file_id = str(uuid7())
+    file_id = str(uuid7())  # Generate unique file ID
     file_size = payload["filesize"]
     HEADER_SIZE = struct.calcsize(FORMAT)  # 4 bytes: unsigned int for chunk length
     
     # File stored with encryption in binary format
     save_path = f"./StorageFiles/{file_id}.bin"
     try:
+        # Create storage directory if needed
         if not os.path.exists("StorageFiles"):
             os.mkdir("StorageFiles")
         with open(save_path,"ab") as f:
@@ -276,6 +287,7 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
         return None
 
     return {"status": True, "message": payload["filename"]+" Uploaded!","file_id":file_id}
+
 def SendFile(file_id: str, ClientHandler) -> None: 
     """Send an encrypted file to client in chunks.
     
@@ -300,6 +312,7 @@ def SendFile(file_id: str, ClientHandler) -> None:
     except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
         pass
     return None
+
 def DeleteFile(file_id, ClientHandler)-> dict[str, Any]:
     """Delete a file and update user's current storage usage.
 
@@ -334,11 +347,13 @@ def DeleteFile(file_id, ClientHandler)-> dict[str, Any]:
             """, (file_id,)
         )
         ClientHandler.db_conn.commit()
+        # Remove physical file from storage
         os.remove(f"./StorageFiles/{file_id}.encrypted")
         return {"status": True, "message": "File deleted successfully!"}
     except Exception as e:
         print(e)
         return {"status": False, "message": "An Error occurred when the server was trying to delete this file"}
+
 def createLink(file_id: str, action: str, db: sqlite3.Connection)-> dict[str, Any]:
     """Enable or disable public sharing link for a file."""
     # 1 = link enabled (shareable), 0 = link disabled
@@ -355,6 +370,7 @@ def createLink(file_id: str, action: str, db: sqlite3.Connection)-> dict[str, An
         # Link has been disabled
         res["message"] = "file linked has been disabled."
     return res
+
 def rename(new_name: str, r_id: str | int, type_of_data: str, db:sqlite3.Connection):
     """Rename a file or folder."""
     cur = db.cursor()
@@ -367,6 +383,7 @@ def rename(new_name: str, r_id: str | int, type_of_data: str, db:sqlite3.Connect
         cur.execute("UPDATE folders SET folder_name = ? WHERE folder_id = ?",(new_name, r_id))
     db.commit()
     return {"status": True}
+
 def get_files(folder_id: str, db_conn: sqlite3.Connection) -> dict[str, Any] | dict[str, bool]:
     """Retrieve all files in a specific folder."""
     try:
@@ -377,6 +394,7 @@ def get_files(folder_id: str, db_conn: sqlite3.Connection) -> dict[str, Any] | d
         return {"status": True, "files": [dict(zip(keys, file_row)) for file_row in file_rows]}
     except sqlite3.DatabaseError:
         return {"status": False}
+
 def createFolder(conn: sqlite3.Connection, uid: int):
     """creating folder for a user
 
@@ -387,9 +405,6 @@ def createFolder(conn: sqlite3.Connection, uid: int):
     Returns:
         dict: response dictionary
     """
-
-
-
     try:
         cur = conn.cursor()
         # Generate unique folder ID using UUID v7
@@ -400,6 +415,7 @@ def createFolder(conn: sqlite3.Connection, uid: int):
         return {"status": True, "folder_id": new_folder_id}
     except sqlite3.DatabaseError:
          return {"status": False}
+
 def recv_exact(sock: socket.socket, size: int) -> bytes:
     """Receive exact number of bytes from socket connection.
     
@@ -432,12 +448,13 @@ def recv_exact(sock: socket.socket, size: int) -> bytes:
         # Handle network errors gracefully
         return b''
     return bytes(data)
+
 def DeleteFolder(folder_id: str,user_id: int, db_conn: sqlite3.Connection):
     """Delete a folder and all files within it, updating user storage."""
     try:
         cur = db_conn.cursor()
         # Subtract total size of all files in folder from user's storage
-        affected_rows = cur.execute("UPDATE users SET curr_storage = curr_storage - COALESCE((SELECT SUM(size) from files WHERE folder_id = ?),0) WHERE user_id = ?",(folder_id, user_id)).rowcount
+        cur.execute("UPDATE users SET curr_storage = curr_storage - COALESCE((SELECT SUM(size) from files WHERE folder_id = ?),0) WHERE user_id = ?",(folder_id, user_id))
         # Get all file IDs in folder for cleanup
         file_ids: list[str] = cur.execute("SELECT file_id FROM files where folder_id = ?",(folder_id,)).fetchall()
         # Delete folder and all associated files from database
@@ -453,24 +470,11 @@ def DeleteFolder(folder_id: str,user_id: int, db_conn: sqlite3.Connection):
             Path(file_path).unlink(missing_ok=True)
 
     except (sqlite3.InternalError, OSError):
-        return {"status": False,"message": "Could'nt fullfill the request."}
+        return {"status": False,"message": "Couldn't fulfill the request."}
     return {"status": True, "current_storage": current_storage}
 
-def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> dict[str, Any] | None:
-
-    """
-        Main request dispatcher for all client operations.
-        
-        Routes different command types (login, upload, delete, etc.) to appropriate handlers.
-    
-        Args:
-            payload (dict[str, Any]): Client request with 'cmd' and parameters
-            ClientHandler: Handler with client socket and database connection
-            **kwargs: Additional arguments
-    
-        Returns:
-            dict[str, Any] | None: Server response or None on error
-    """
+def handle_client_request(payload: dict[str, Any],ClientHandler) -> dict[str, Any] | None:
+    """Route client request to appropriate handler function."""
     
     response: dict[str, Any] | None = {}
     ClientHandler.write_to_log(f"fetching {ClientHandler}'s Request: "+payload["cmd"])
@@ -521,7 +525,7 @@ def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> di
         case "save":
             # Send encrypted file to client
             response = SendFile(payload["file_id"], ClientHandler)
-        case "handlelink":
+        case "handle_link":
             # Enable/disable public sharing link
             response = createLink(payload["file_id"],payload["action"],db_conn)
         case "rename":
@@ -533,6 +537,9 @@ def handle_client_request(payload: dict[str, Any],ClientHandler, **kwargs) -> di
         case "get_files":
             # Retrieve all files in folder
             response = get_files(payload["folder_id"], db_conn)
+        case "ping":
+            # Respond to client ping
+            response = {"status": True, "message": "Pong!"}
         case _:
             # Unknown command
             response = {"status": False, "message": "Invalid command"}

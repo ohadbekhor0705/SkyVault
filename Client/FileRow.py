@@ -65,12 +65,12 @@ class FileRow(ctk.CTkFrame):
         # Context menu with Windows-11 styling\n        
         BG_COLOR = "#ffffff"         # Pure white menu background\n        
         FG_COLOR = "#000000"         # Black text
-        ACTIVE_BG = "#e5f1fb"        # Soft Windows-11 style light blue for hover
+        ACTIVE_BG = "#226aa5"        # Soft Windows-11 style light blue for hover
         ACTIVE_FG = "#000000"        # Keep text black on hover
         self.menu = tk.Menu(
             self, 
             tearoff=0, 
-            font=("Arial", 20), 
+            font=("Outfit", 15), 
             bg=BG_COLOR, 
             fg=FG_COLOR,
             activebackground=ACTIVE_BG, 
@@ -155,3 +155,5 @@ class FileRow(ctk.CTkFrame):
         self.name_entry.delete(0, "end")
         self.name_entry.insert(0, self.filename)
         self.name_entry.configure(state="disabled", border_width=0)
+
+

@@ -346,7 +346,8 @@ class FolderRow(ctk.CTkFrame):
 
     def on_click(self, event=None):
         """Handle folder selection - load files for this folder."""
-        # Deselect previous folder
+        # Deselect previous folder\
+        print(self.client_bl.work_event.is_set())
         if self.client_bl.work_event.is_set():
             return
         
@@ -354,18 +355,16 @@ class FolderRow(ctk.CTkFrame):
             if prev != self:
                 prev.configure(border_width=0)
                 prev._on_cancel()
-            else:
-                return
         
         # Clear previous files and load new folder's files
-        #self.main_frame.files_frame.after(50,self.main_frame.clear_file_rows)
+        self.main_frame.after(50, self.main_frame.clear_file_rows)
         self.main_frame.selected_folder_id = self.folder_id
         self.configure(border_width = 4, border_color=("gray50", "gray75"), fg_color = "transparent")
 
         # Fetch and display files for this folder
         file_rows: list[FileRow] = self.client_bl.get_files_data(
             self.folder_id,
-            self.main_frame.files_frame,[
+            self.main_frame.files_frame, [
                 self.main_frame.make_delete_callback,
                 self.main_frame.make_save_callback,
                 self.main_frame.make_share_callback

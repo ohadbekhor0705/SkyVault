@@ -134,8 +134,8 @@ class CServerBL():
         """
         self.write_to_log(self)  # Log server start
         try:
-            self._api_thread = threading.Thread(target=self._run_flask, daemon=True)
-            self._api_thread.start()
+            # self._api_thread = threading.Thread(target=self._run_flask, daemon=True)
+            # self._api_thread.start()
             self.clientHandlers
             self._event.set()  # Set event flag
             self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create socket

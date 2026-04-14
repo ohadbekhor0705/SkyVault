@@ -314,7 +314,8 @@ def SendFile(file_id: str, ClientHandler) -> None:
     return None
 
 def DeleteFile(file_id, ClientHandler)-> dict[str, Any]:
-    """Delete a file and update user's current storage usage.
+    """
+    Delete a file and update user's current storage usage.
 
     Args:
         file_id (str): ID of file to delete

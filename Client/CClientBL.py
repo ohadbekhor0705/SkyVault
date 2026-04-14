@@ -153,8 +153,6 @@ class CClientBL():
             
             if response["status"]:
                 files_data = response["files"]
-                print(len(files_data))
-                
                 # Create FileRow UI elements for each file
                 for i, file_data in enumerate(files_data):
                     file_row = FileRow(
@@ -167,7 +165,7 @@ class CClientBL():
                         bool(file_data["share_link"]),
                         self,
                         on_delete=callbacks[0](file_data["file_id"], file_data["size"], None),
-                        on_save=callbacks[1](file_data["file_id"], file_data["filename"], file_data[""]),
+                        on_save=callbacks[1](file_data["file_id"], file_data["filename"], file_data["file_hash"]),
                         on_share=None,
                     )
                     
@@ -175,10 +173,9 @@ class CClientBL():
                     file_row.on_delete = callbacks[0](file_row.file_id, file_data["size"], file_row)
                     file_row.on_share = callbacks[2](file_row)
                     file_rows.append(file_row)
-                    
+                print(f"Retrieved {len(file_rows)} files from server.")
         except (ConnectionAbortedError, ConnectionError, ConnectionResetError):
             if header_field:
-                self.work_event.clear()
                 header_field.configure(text="Something went wrong with the server! Couldn't retrieve data from the cloud", text_color="red")
         finally:
             self.work_event.clear()

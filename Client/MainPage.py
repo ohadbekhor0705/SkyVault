@@ -120,9 +120,10 @@ class MainFrame(ctk.CTkFrame):
                 self.folder_rows[folder_row.folder_id] = folder_row
                 if f["is_system"]:
                     self.selected_folder_id = f["folder_id"]
+                    folder_row.on_click()
             
-        # Start connection check thread
-        threading.Thread(target=self.check_connection, daemon=True).start()
+        # Start connection check thread      
+        #threading.Thread(target=self.check_connection, daemon=True).start()
 
             
     def _on_click_Upload(self) -> None:
@@ -197,7 +198,7 @@ class MainFrame(ctk.CTkFrame):
             action = "enable" if row.check_var.get() else "disable"
             print(action)
             # Send share link request to server
-            self.client_bl._send_message({"cmd": "handlelink", "action": action,"file_id": row.file_id})
+            self.client_bl._send_message({"cmd": "handle_link", "action": action,"file_id": row.file_id})
             response = self.client_bl._get_message()
             if response["status"]:
                 row.has_share_link = not row.check_var.get()
@@ -207,7 +208,7 @@ class MainFrame(ctk.CTkFrame):
                     pyperclip.copy(link)
             else:
                 row.check_var.set(not row.check_var.get())
-            self.header.configure(text=response["message"])
+            self.header.configure(text=response["message"], text_color="green" if response["status"] else "red")
             threading.Thread(target=self.animate).start()
 
         return lambda: threading.Thread(target=callback).start()   
@@ -268,10 +269,10 @@ class MainFrame(ctk.CTkFrame):
                 if not self.client_bl.work_event.is_set(): 
                     self.client_bl._send_message({"cmd": "ping"})
                     if response := self.client_bl._get_message():
-                        if response["status"]:
+                         if response["status"]:
                             print("Connection healthy") 
                     else:
-                        raise ConnectionError("No response to ping")
+                         raise ConnectionError("No response to ping")
                 sleep(2)
         except (socket.error, ConnectionAbortedError, ConnectionError, ConnectionResetError, BrokenPipeError):
             def logout_cleanup():
@@ -346,15 +347,19 @@ class FolderRow(ctk.CTkFrame):
     def on_click(self, event=None):
         """Handle folder selection - load files for this folder."""
         # Deselect previous folder
+        if self.client_bl.work_event.is_set():
+            return
+        
         if prev := self.main_frame.folder_rows.get(self.main_frame.selected_folder_id):
             if prev != self:
                 prev.configure(border_width=0)
                 prev._on_cancel()
+            else:
+                return
         
         # Clear previous files and load new folder's files
-        self.main_frame.clear_file_rows()
+        #self.main_frame.files_frame.after(50,self.main_frame.clear_file_rows)
         self.main_frame.selected_folder_id = self.folder_id
-        print(self.main_frame.selected_folder_id)
         self.configure(border_width = 4, border_color=("gray50", "gray75"), fg_color = "transparent")
 
         # Fetch and display files for this folder
@@ -368,12 +373,14 @@ class FolderRow(ctk.CTkFrame):
             header_field = self.main_frame.header,
             animate = self.main_frame.animate
         )
-
-        for i, file_rows in enumerate(file_rows):
-            file_rows.grid(row=i, column=0, padx=12,pady=6, sticky="nsew")
+        
+        for i, file_row in enumerate(file_rows):
+            file_row.grid(row=i, column=0, padx=12,pady=6, sticky="nsew")
   
     def _on_double_click(self, event=None):
         """Enable folder name editing on double-click."""
+        if self.client_bl.work_event.is_set():
+            return
         self.main_frame.upload_button.configure(state="disabled")
         self.main_frame.create_folder_button.configure(state="disabled")
         self.folder_entry.configure(state="normal", border_width=2)
@@ -406,12 +413,16 @@ class FolderRow(ctk.CTkFrame):
 
     def on_click_delete(self, event=None):
         """Handle folder deletion."""
+        if self.client_bl.work_event.is_set():
+            return
         threading.Thread(target=self.client_bl.delete_folder(
             self,
             self.main_frame.folder_rows,
             header_field=self.main_frame.header,
             bar=self.main_frame.progress_bar
         )).start()
+        self.main_frame.upload_button.configure(state="normal")
+        self.main_frame.create_folder_button.configure(state="normal")
 
     # Hover handling
     def _bind_hover(self, *widgets: list[ctk.CTkFrame]):

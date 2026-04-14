@@ -355,22 +355,6 @@ def DeleteFile(file_id, ClientHandler)-> dict[str, Any]:
         print(e)
         return {"status": False, "message": "An Error occurred when the server was trying to delete this file"}
 
-def createLink(file_id: str, action: str, db: sqlite3.Connection)-> dict[str, Any]:
-    """Enable or disable public sharing link for a file."""
-    # 1 = link enabled (shareable), 0 = link disabled
-    value = 1 if action == "enable" else 0
-    cur = db.cursor()
-    cur.execute("UPDATE files SET share_link = ? WHERE file_id = ?",(value, file_id))
-    db.commit()
-    res = {"status": True}
-    if bool(value):
-        # Generate shareable link with server's hostname
-        res["message"] = "Linked Copy to clipboard!"
-        res["link"] = f'{socket.gethostbyname(socket.gethostname())}/view_file/{file_id}'
-    else:
-        # Link has been disabled
-        res["message"] = "file linked has been disabled."
-    return res
 
 def rename(new_name: str, r_id: str | int, type_of_data: str, db:sqlite3.Connection):
     """Rename a file or folder."""
@@ -391,7 +375,7 @@ def get_files(folder_id: str, db_conn: sqlite3.Connection) -> dict[str, Any] | d
         cur = db_conn.cursor()
         # Fetch all files belonging to this folder
         file_rows =cur.execute("SELECT * FROM files where folder_id = ?",(folder_id,)).fetchall()
-        keys: list[str] = ["file_id", "filename", "size","modified","file_hash" ,"user_id","folder_id","share_link"]
+        keys: list[str] = ["file_id", "filename", "size","modified","file_hash" ,"user_id","folder_id"]
         return {"status": True, "files": [dict(zip(keys, file_row)) for file_row in file_rows]}
     except sqlite3.DatabaseError:
         return {"status": False}
@@ -526,9 +510,6 @@ def handle_client_request(payload: dict[str, Any],ClientHandler) -> dict[str, An
         case "save":
             # Send encrypted file to client
             response = SendFile(payload["file_id"], ClientHandler)
-        case "handle_link":
-            # Enable/disable public sharing link
-            response = createLink(payload["file_id"],payload["action"],db_conn)
         case "rename":
             # Rename file or folder
             response = rename(payload["name"], payload["id"],payload["type"], db_conn)

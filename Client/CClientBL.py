@@ -162,16 +162,13 @@ class CClientBL():
                         file_data["size"],
                         str(datetime.fromtimestamp(file_data["modified"]).date()),
                         file_data["file_hash"],
-                        bool(file_data["share_link"]),
                         self,
                         on_delete=callbacks[0](file_data["file_id"], file_data["size"], None),
                         on_save=callbacks[1](file_data["file_id"], file_data["filename"], file_data["file_hash"]),
-                        on_share=None,
                     )
                     
                     # Update callbacks with row reference after creation
                     file_row.on_delete = callbacks[0](file_row.file_id, file_data["size"], file_row)
-                    file_row.on_share = callbacks[2](file_row)
                     file_rows.append(file_row)
                 print(f"Retrieved {len(file_rows)} files from server.")
         except (ConnectionAbortedError, ConnectionError, ConnectionResetError):
@@ -255,16 +252,12 @@ class CClientBL():
                     file_size,
                     datetime.now().strftime("%Y-%m-%d"),
                     file_hash,
-                    False,
                     self,
                     on_delete=callbacks[0](response["file_id"], file_size, None),
-                    on_save=callbacks[1](response["file_id"], file.name.split("/")[-1], file_hash),
-                    on_share=None,
                 )
 
                 # Update callbacks with row reference
                 file_row.on_delete = callbacks[0](response["file_id"], file_size, file_row)
-                file_row.on_share = callbacks[2](file_row)
                 file_row.grid(row=last_row, column=0, sticky="ew", padx=12, pady=6)
                 
         except (ConnectionResetError, ConnectionAbortedError, ConnectionError):

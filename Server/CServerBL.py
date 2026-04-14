@@ -5,7 +5,6 @@ import threading  # Import threading for concurrent connections
 import json  # Import json for message serialization
 import os  # Import os for file system operations
 from typing import Callable, List, Tuple, Dict
-from flask import Flask, Response, abort, stream_with_context
 from protocol import *  # Import protocol definitions
 import bcrypt  # Import bcrypt for password hashing
 import struct
@@ -40,7 +39,6 @@ class CServerBL():
                     file_hash TXT,
                     user_id INTEGER,
                     folder_id INTEGER,
-                    share_link BOOLEAN NOT NULL DEFAULT 0,
                     FOREIGN KEY(user_id) REFERENCES users(user_id),
                     FOREIGN KEY(folder_id) REFERENCES folder(folder_id)
                 );
@@ -54,52 +52,6 @@ class CServerBL():
             """
             )
 
-    def _register_routes(self) -> None:
-        @self.app.before_request
-        def check_server_status():
-            # If the threading.Event is cleared, block all incoming HTTP requests
-            if not self._event.is_set():
-                    abort(503, description="Server is shutting down or inactive.")
-        @self.app.route("/view_file/<file_id>")
-        def view_file(file_id: str):
-            with sqlite3.connect(DB_PATH) as conn:
-                cur = conn.cursor()
-                row = cur.execute(
-                    "SELECT filename FROM files WHERE file_id = ? AND share_link = 1",
-                    (file_id,)
-                ).fetchone()
-
-                if row is None:
-                    abort(404)
-
-                filename: str = row[0]
-                suffix = Path(filename).suffix.lower()  #  getting suffix
-
-            mime = BROWSER_DISPLAYABLE_MIME_MAP.get(suffix)
-
-            if mime is None:
-                mime = "application/octet-stream"
-                disposition = f"attachment; filename={filename}"
-            else:
-                disposition = f"inline; filename={filename}"
-
-            def generate():
-                with open(f"StorageFiles/{file_id}.bin", "rb") as f:
-                    while (header := f.read(4)):
-                        size = struct.unpack(">I", header)[0]
-                        chunk = f.read(size)
-                        yield file_fernet.decrypt(chunk)
-
-            return Response(
-                stream_with_context(generate()),
-                mimetype=mime,
-                headers={
-                    "Content-Disposition": disposition,
-                    "X-Content-Type-Options": "nosniff"
-                },
-            )           
-    def _run_flask(self) -> None:
-        self.app.run("0.0.0.0",80, use_reloader=False)
         
     def __init__(self) -> None:
         self._api_thread: threading.Thread | None = None
@@ -121,8 +73,6 @@ class CServerBL():
         # Export public key to send to client
         self.pem_public = self.public_key.public_bytes(encoding=serialization.Encoding.PEM,format=serialization.PublicFormat.SubjectPublicKeyInfo)
 
-        self.app = Flask(__name__)
-        self._register_routes()
 
     # Start the server
     def start_server(self) ->  None:
@@ -134,8 +84,6 @@ class CServerBL():
         """
         self.write_to_log(self)  # Log server start
         try:
-            # self._api_thread = threading.Thread(target=self._run_flask, daemon=True)
-            # self._api_thread.start()
             self.clientHandlers
             self._event.set()  # Set event flag
             self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create socket

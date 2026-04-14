@@ -11,11 +11,9 @@ class FileRow(ctk.CTkFrame):
         file_size: int,
         date_modified: str,
         file_hash: bytes,
-        share_link: bool,
         client_bl,
         on_delete: Optional[Callable[[str], None]] = None,
         on_save: Optional[Callable[[str], None]] = None,
-        on_share: Optional[Callable[[str], None]] = None,
         **kwargs
     ):
         super().__init__(master, **kwargs)
@@ -25,10 +23,7 @@ class FileRow(ctk.CTkFrame):
 
         self.on_delete = on_delete
         self.on_save = on_save
-        self.on_share = on_share
         self.file_hash = file_hash
-        self.share_link: str = ""
-        self.has_share_link = share_link
 
         self.default_fg = self.cget("fg_color")
         self.hover_fg = ("#cfcfcf", "#3a3a3a")
@@ -42,7 +37,6 @@ class FileRow(ctk.CTkFrame):
         self.grid_columnconfigure(2, minsize=150)  # Date column
         self.grid_columnconfigure(3, weight=1)      # Spacer to push buttons right
         self.grid_columnconfigure(4, weight=0)      # Menu button
-        self.grid_columnconfigure(5, weight=0)      # Checkbox
 
         # Widgets - set fg_color to transparent so they inherit the Frame's hover color
         self.name_entry = ctk.CTkEntry(self, border_width=0, fg_color="transparent", font=ctk.CTkFont("Outfit"))
@@ -60,7 +54,6 @@ class FileRow(ctk.CTkFrame):
         self.size_label.grid(row=0, column=1, padx=Padx, pady=Pady, sticky="w")
         self.date_label.grid(row=0, column=2, padx=Padx, pady=Pady, sticky="w")
         self.menu_button.grid(row=0, column=4, padx=Padx, pady=Pady, sticky="e")
-        self.link_checkbox.grid(row=0, column=5, padx=Padx, pady=Pady, sticky="e")
 
         # Context menu with Windows-11 styling\n        
         BG_COLOR = "#ffffff"         # Pure white menu background\n        
@@ -88,7 +81,6 @@ class FileRow(ctk.CTkFrame):
         self.menu.add_separator()
         self.menu.add_command(label="Delete", command=self._handle_delete)
         self.menu.add_command(label="Rename", command=self._on_edit)
-        self.menu.add_command(label="Copy link", command=lambda: pyperclip.copy(f"{self.client_bl.server_ip}/view_file/{self.file_id}"))
 
         # Hover bindings
         widgets = (self.name_entry, self.size_label, self.date_label, self.menu_button, self.link_checkbox)
@@ -123,10 +115,6 @@ class FileRow(ctk.CTkFrame):
     def _handle_save(self):
         if self.on_save:
             self.on_save()
-
-    def _handle_share(self):
-        if self.on_share:
-            self.on_share()
 
 
     def _on_edit(self):

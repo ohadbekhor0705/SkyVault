@@ -123,7 +123,7 @@ class MainFrame(ctk.CTkFrame):
                     folder_row.on_click()
             
         # Start connection check thread      
-        #threading.Thread(target=self.check_connection, daemon=True).start()
+        threading.Thread(target=self.check_connection, daemon=True).start()
 
             
     def _on_click_Upload(self) -> None:
@@ -189,29 +189,6 @@ class MainFrame(ctk.CTkFrame):
             self.client_bl.ReceiveFile(file_id,filename,save_path,file_hash, header_field=self.header)
         return lambda: threading.Thread(target=callback).start()
     
-    def make_share_callback(self,row: FileRow):
-        """Create a callback function for file sharing link toggle."""
-        def callback():
-            if self.client_bl.work_event.is_set():
-                return
-            print(f"{row.check_var.get()=}")
-            action = "enable" if row.check_var.get() else "disable"
-            print(action)
-            # Send share link request to server
-            self.client_bl._send_message({"cmd": "handle_link", "action": action,"file_id": row.file_id})
-            response = self.client_bl._get_message()
-            if response["status"]:
-                row.has_share_link = not row.check_var.get()
-                if action == "enable":
-                    link = response["link"]
-                    row.share_link = link
-                    pyperclip.copy(link)
-            else:
-                row.check_var.set(not row.check_var.get())
-            self.header.configure(text=response["message"], text_color="green" if response["status"] else "red")
-            threading.Thread(target=self.animate).start()
-
-        return lambda: threading.Thread(target=callback).start()   
     
     def on_click_create_folder(self):
         """Handle new folder creation."""

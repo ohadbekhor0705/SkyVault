@@ -38,7 +38,7 @@ class CClientBL():
         
         # Server connection details
         self.server_ip: str = "localhost"
-        self.server_port: str = 7777
+        self.server_port: str = 8080
         
         # Work event to track ongoing operations
         self.work_event: threading.Event = threading.Event()

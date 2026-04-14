@@ -276,7 +276,7 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
         cur: sqlite3.Cursor =  ClientHandler.db_conn.cursor()
         cur.execute("UPDATE users SET curr_storage = curr_storage + ? WHERE user_id = ? ", (payload["filesize"],ClientHandler.user_id))
         # Insert file record with metadata (hash for integrity, timestamp, folder association)
-        cur.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?,?,?,?)",(file_id,payload["filename"],payload["filesize"], int(datetime.now().timestamp()), payload["hash"], ClientHandler.user_id, payload["folder_id"],0))
+        cur.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?,?,?)",(file_id,payload["filename"],payload["filesize"], int(datetime.now().timestamp()), payload["hash"], ClientHandler.user_id, payload["folder_id"]))
         ClientHandler.db_conn.commit()
 
     

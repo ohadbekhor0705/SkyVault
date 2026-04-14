@@ -147,7 +147,7 @@ class MainFrame(ctk.CTkFrame):
                 target=lambda: self.client_bl.sendfile(
                     f,
                     self.selected_folder_id,
-                    [self.make_delete_callback, self.make_save_callback, self.make_share_callback],
+                    [self.make_delete_callback, self.make_save_callback],
                     header_field=res_text,
                     parent=self.files_frame,
                     animate=self.animate,
@@ -344,7 +344,6 @@ class FolderRow(ctk.CTkFrame):
             self.main_frame.files_frame, [
                 self.main_frame.make_delete_callback,
                 self.main_frame.make_save_callback,
-                self.main_frame.make_share_callback
             ],
             header_field = self.main_frame.header,
             animate = self.main_frame.animate

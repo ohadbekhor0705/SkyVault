@@ -29,8 +29,6 @@ class FileRow(ctk.CTkFrame):
         self.hover_fg = ("#cfcfcf", "#3a3a3a")
 
 
-        self.check_var: ctk.BooleanVar = ctk.BooleanVar(value=self.has_share_link)
-
         # Fixed Column Configuration for perfect alignment across rows
         self.grid_columnconfigure(0, minsize=300)  # Name column 
         self.grid_columnconfigure(1, minsize=100)  # Size column
@@ -44,7 +42,6 @@ class FileRow(ctk.CTkFrame):
         self.name_entry.configure(state="disabled")
         self.size_label = ctk.CTkLabel(self, text=file_size, anchor="w", fg_color="transparent")
         self.date_label = ctk.CTkLabel(self, text=str(date_modified), anchor="w", fg_color="transparent")
-        self.link_checkbox = ctk.CTkCheckBox(self, command=self._handle_share, variable=self.check_var, text="")
         self.menu_button = ctk.CTkButton(self, text="⋯", width=36, command=self._show_menu)
 
         # Grid placement with consistent sticky behavior
@@ -83,7 +80,7 @@ class FileRow(ctk.CTkFrame):
         self.menu.add_command(label="Rename", command=self._on_edit)
 
         # Hover bindings
-        widgets = (self.name_entry, self.size_label, self.date_label, self.menu_button, self.link_checkbox)
+        widgets = (self.name_entry, self.size_label, self.date_label, self.menu_button)
         self._bind_hover(self)
         for w in widgets:
             self._bind_hover(w)

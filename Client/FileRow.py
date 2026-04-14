@@ -1,7 +1,6 @@
 import customtkinter as ctk
 import tkinter as tk
 from typing import Callable, Optional, Any
-import pyperclip
 class FileRow(ctk.CTkFrame):
     def __init__(
         self,

@@ -105,7 +105,7 @@ class CServerBL():
         self._api_thread: threading.Thread | None = None
         self._create_tables()
         self._ip: str = "0.0.0.0"  # Server IP address
-        self._port: int = 7777  # Server port
+        self._port: int = 8080  # Server port
         self._server_socket: socket.socket | None = None  # Main server socket
         self.logger_box = None
         self.clientHandlers: list[ClientHandler] = []  # List of client handler threads
@@ -186,7 +186,7 @@ class CServerBL():
         except Exception as e:
             self.write_to_log(f"[ServerBL] Exception at stop_server(): {e}")  # Log exceptions
     def __repr__ (self)  -> str:
-        return  f'{socket.gethostbyname(socket.gethostname())}:5050'
+        return  f'{socket.gethostbyname(socket.gethostname())}:{self._port}'
     def write_to_log(self, msg: Any) -> None:
         if self.logger_box:
             self.logger_box.insert("end",f"{msg}\n")

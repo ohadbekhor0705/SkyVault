@@ -139,4 +139,3 @@ class FileRow(ctk.CTkFrame):
         self.name_entry.delete(0, "end")
         self.name_entry.insert(0, self.filename)
         self.name_entry.configure(state="disabled", border_width=0)
-

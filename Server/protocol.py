@@ -25,88 +25,6 @@ DB_PATH = "./mydb.db"  # Path to SQLite database
 FORMAT = "!I"  # Network format: big-endian unsigned int (4 bytes)
 CHUNK_SIZE = 1024 * 64  # File transfer chunk size: 64 KB
 connected_user_ids: list[int] = []  # Track currently active user sessions
-BROWSER_DISPLAYABLE_MIME_MAP = {
-    # Plain text / source
-    ".txt":  "text/plain; charset=utf-8",
-    ".py":   "text/plain; charset=utf-8",
-    ".js":   "text/javascript; charset=utf-8",
-    ".mjs":  "text/javascript; charset=utf-8",
-    ".ts":   "text/javascript; charset=utf-8",
-    ".tsx":  "text/javascript; charset=utf-8",
-    ".jsx":  "text/javascript; charset=utf-8",  
-    ".css":  "text/css; charset=utf-8",
-    ".scss": "text/x-scss; charset=utf-8",
-    ".sass": "text/x-sass; charset=utf-8",
-    ".less": "text/css; charset=utf-8",
-    ".md":   "text/markdown; charset=utf-8",
-    ".log":  "text/plain; charset=utf-8",
-    ".csv":  "text/csv; charset=utf-8",
-    ".tsv":  "text/tab-separated-values; charset=utf-8",
-    ".yaml": "application/x-yaml; charset=utf-8",
-    ".yml":  "application/x-yaml; charset=utf-8",
-    ".json": "application/json; charset=utf-8",
-    ".map":  "application/json; charset=utf-8",
-    ".xml":  "application/xml; charset=utf-8",
-    ".rss":  "application/rss+xml; charset=utf-8",
-    ".atom": "application/atom+xml; charset=utf-8",
-
-    # HTML
-    ".html": "text/html; charset=utf-8",
-    ".htm":  "text/html; charset=utf-8",
-
-    # Images
-    ".png":  "image/png",
-    ".jpg":  "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".gif":  "image/gif",
-    ".webp": "image/webp",
-    ".svg":  "image/svg+xml",
-    ".bmp":  "image/bmp",
-    ".ico":  "image/x-icon",
-    ".avif": "image/avif",
-    ".tiff": "image/tiff",
-    ".tif":  "image/tiff",
-
-    # Audio
-    ".mp3":  "audio/mpeg",
-    ".wav":  "audio/wav",
-    ".ogg":  "audio/ogg",
-    ".oga":  "audio/ogg",
-    ".m4a":  "audio/mp4",
-    ".aac":  "audio/aac",
-    ".flac": "audio/flac",
-
-    # Video
-    ".mp4":  "video/mp4",
-    ".webm": "video/webm",
-    ".ogv":  "video/ogg",
-    ".mov":  "video/quicktime",
-    ".mkv":  "video/x-matroska",
-
-    # Documents
-    ".pdf":  "application/pdf",
-    ".wasm": "application/wasm",
-    ".doc":  "application/msword",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".xls":  "application/vnd.ms-excel",
-    ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    ".ppt":  "application/vnd.ms-powerpoint",
-    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-
-    # Fonts
-    ".woff":  "font/woff",
-    ".woff2": "font/woff2",
-    ".ttf":   "font/ttf",
-    ".otf":   "font/otf",
-    ".eot":   "application/vnd.ms-fontobject",
-
-    # Archives (some browsers may download instead of render)
-    ".zip":  "application/zip",
-    ".tar":  "application/x-tar",
-    ".gz":   "application/gzip",
-    ".rar":  "application/vnd.rar",
-    ".7z":   "application/x-7z-compressed",
-}
 
 
 # ==================== Encryption Utilities ====================
@@ -276,7 +194,7 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
         cur: sqlite3.Cursor =  ClientHandler.db_conn.cursor()
         cur.execute("UPDATE users SET curr_storage = curr_storage + ? WHERE user_id = ? ", (payload["filesize"],ClientHandler.user_id))
         # Insert file record with metadata (hash for integrity, timestamp, folder association)
-        cur.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?,?,?,?)",(file_id,payload["filename"],payload["filesize"], int(datetime.now().timestamp()), payload["hash"], ClientHandler.user_id, payload["folder_id"],0))
+        cur.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?,?,?)",(file_id,payload["filename"],payload["filesize"], int(datetime.now().timestamp()), payload["hash"], ClientHandler.user_id, payload["folder_id"]))
         ClientHandler.db_conn.commit()
 
     
@@ -355,23 +273,6 @@ def DeleteFile(file_id, ClientHandler)-> dict[str, Any]:
         print(e)
         return {"status": False, "message": "An Error occurred when the server was trying to delete this file"}
 
-def createLink(file_id: str, action: str, db: sqlite3.Connection)-> dict[str, Any]:
-    """Enable or disable public sharing link for a file."""
-    # 1 = link enabled (shareable), 0 = link disabled
-    value = 1 if action == "enable" else 0
-    cur = db.cursor()
-    cur.execute("UPDATE files SET share_link = ? WHERE file_id = ?",(value, file_id))
-    db.commit()
-    res = {"status": True}
-    if bool(value):
-        # Generate shareable link with server's hostname
-        res["message"] = "Linked Copy to clipboard!"
-        res["link"] = f'{socket.gethostbyname(socket.gethostname())}/view_file/{file_id}'
-    else:
-        # Link has been disabled
-        res["message"] = "file linked has been disabled."
-    return res
-
 def rename(new_name: str, r_id: str | int, type_of_data: str, db:sqlite3.Connection):
     """Rename a file or folder."""
     cur = db.cursor()
@@ -391,7 +292,7 @@ def get_files(folder_id: str, db_conn: sqlite3.Connection) -> dict[str, Any] | d
         cur = db_conn.cursor()
         # Fetch all files belonging to this folder
         file_rows =cur.execute("SELECT * FROM files where folder_id = ?",(folder_id,)).fetchall()
-        keys: list[str] = ["file_id", "filename", "size","modified","file_hash" ,"user_id","folder_id","share_link"]
+        keys: list[str] = ["file_id", "filename", "size","modified","file_hash" ,"user_id","folder_id"]
         return {"status": True, "files": [dict(zip(keys, file_row)) for file_row in file_rows]}
     except sqlite3.DatabaseError:
         return {"status": False}
@@ -526,9 +427,6 @@ def handle_client_request(payload: dict[str, Any],ClientHandler) -> dict[str, An
         case "save":
             # Send encrypted file to client
             response = SendFile(payload["file_id"], ClientHandler)
-        case "handle_link":
-            # Enable/disable public sharing link
-            response = createLink(payload["file_id"],payload["action"],db_conn)
         case "rename":
             # Rename file or folder
             response = rename(payload["name"], payload["id"],payload["type"], db_conn)

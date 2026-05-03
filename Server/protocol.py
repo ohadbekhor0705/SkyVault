@@ -142,7 +142,7 @@ def InsertUser(user: Dict[str,Any]) -> tuple[dict[str, Any], None] | tuple[dict[
 
 def files_by_id(uid: int) -> list[dict[str, Any]]:
     """Retrieve all files for a specific user."""
-    with sqlite3.connect("./mydb.db") as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         cur = conn.cursor()
         # Fetch all files for the user
         files = cur.execute("SELECT * FROM files WHERE user_id = ?",(uid,)).fetchall()
@@ -152,7 +152,7 @@ def files_by_id(uid: int) -> list[dict[str, Any]]:
 def get_folders_by_id(uid: int):
     """Retrieve all folders for a specific user."""
     keys = ["folder_id","folder_name","is_system", "user_id"]
-    with sqlite3.connect("./mydb.db") as conn:
+    with sqlite3.connect(DB_PATH) as conn:
         cur = conn.cursor()
         # Fetch all folders for the user
         folders = cur.execute("SELECT * FROM folders WHERE user_id = ?",(uid,)).fetchall()

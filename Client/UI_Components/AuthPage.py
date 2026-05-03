@@ -2,7 +2,7 @@ import customtkinter as ctk
 from typing import Any, Callable, Optional
 from CClientBL import CClientBL
 import threading
-from MainPage import MainFrame
+from UI_Components.MainPage import MainFrame
 class AuthFrame(ctk.CTkFrame):
     def __init__(
         self,

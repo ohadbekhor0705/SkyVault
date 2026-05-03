@@ -12,7 +12,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography import fernet
 import base64
 import threading
-from FileRow import FileRow
+from UI_Components.FileRow import FileRow
 from time import sleep
 from customtkinter import END
 import hashlib

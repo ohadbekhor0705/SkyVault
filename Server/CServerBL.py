@@ -62,9 +62,8 @@ class CServerBL():
         self.logger_box = None
         self.clientHandlers: list[ClientHandler] = []  # List of client handler threads
         self._event = threading.Event()  # Event flag for server loop
-        _storage_folder_name = "./StorageFiles"  # Folder for storage
-        if not os.path.exists(_storage_folder_name):  # Create folder if not exists
-            os.mkdir(_storage_folder_name)
+        if not os.path.exists(STORAGE_DIR):  # Create folder if not exists
+            os.mkdir(STORAGE_DIR)
 
 
         self.private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)

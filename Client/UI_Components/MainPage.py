@@ -1,16 +1,12 @@
 import itertools
 import socket
-import sys
 from time import sleep
-import traceback
 from typing import Callable, NoReturn
 from CClientBL import CClientBL
 import customtkinter as ctk
-from FileRow import FileRow
+from UI_Components.FileRow import FileRow
 import threading
 from tkinter import filedialog as fd
-import pyperclip
-from datetime import datetime, date
 from PIL import Image
 
 

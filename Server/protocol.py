@@ -21,7 +21,7 @@ from pathlib import Path
 import sqlite3
 
 # ==================== Configuration Constants ====================
-DB_PATH = "./mydb.db"  # Path to SQLite database
+DB_PATH = "./skyvault.db"  # Path to SQLite database
 FORMAT = "!I"  # Network format: big-endian unsigned int (4 bytes)
 CHUNK_SIZE = 1024 * 64  # File transfer chunk size: 64 KB
 connected_user_ids: list[int] = []  # Track currently active user sessions

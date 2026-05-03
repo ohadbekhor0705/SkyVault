@@ -279,7 +279,7 @@ class FolderRow(ctk.CTkFrame):
         
         super().__init__(master,**kwargs)
         self.client_bl: CClientBL = client_bl
-        self.is_root = is_system
+        self.is_system = is_system
         self.folder_name = folder_name if folder_name != "" else "unnamed"
         self.root = master
         self.main_frame = main_frame
@@ -302,7 +302,7 @@ class FolderRow(ctk.CTkFrame):
         self.folder_entry.grid(row=0,column=0, sticky="nsew" ,padx=Padx,pady=Pady)
 
         # Delete button (only for non-system folders)
-        if not self.is_root:
+        if not self.is_system:
             self.delete_button = ctk.CTkButton(
                 self,
                 text="",

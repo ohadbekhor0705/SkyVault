@@ -267,7 +267,7 @@ def DeleteFile(file_id, ClientHandler)-> dict[str, Any]:
         )
         ClientHandler.db_conn.commit()
         # Remove physical file from storage
-        os.remove(f"./StorageFiles/{file_id}.encrypted")
+        os.remove(f"./StorageFiles/{file_id}.bin")
         return {"status": True, "message": "File deleted successfully!"}
     except Exception as e:
         print(e)

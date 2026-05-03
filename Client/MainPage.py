@@ -250,7 +250,7 @@ class MainFrame(ctk.CTkFrame):
                             print("Connection healthy") 
                     else:
                          raise ConnectionError("No response to ping")
-                sleep(2)
+                sleep(3)
         except (socket.error, ConnectionAbortedError, ConnectionError, ConnectionResetError, BrokenPipeError):
             def logout_cleanup():
                     self.client_bl.work_event.clear()

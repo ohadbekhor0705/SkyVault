@@ -22,6 +22,7 @@ import sqlite3
 
 # ==================== Configuration Constants ====================
 DB_PATH = "./skyvault.db"  # Path to SQLite database
+STORAGE_DIR = "./Vault"  # Directory for storing encrypted files
 FORMAT = "!I"  # Network format: big-endian unsigned int (4 bytes)
 CHUNK_SIZE = 1024 * 64  # File transfer chunk size: 64 KB
 connected_user_ids: list[int] = []  # Track currently active user sessions
@@ -173,11 +174,11 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
     HEADER_SIZE = struct.calcsize(FORMAT)  # 4 bytes: unsigned int for chunk length
     
     # File stored with encryption in binary format
-    save_path = f"./StorageFiles/{file_id}.bin"
+    save_path = f"./{STORAGE_DIR}/{file_id}.bin"
     try:
         # Create storage directory if needed
-        if not os.path.exists("StorageFiles"):
-            os.mkdir("StorageFiles")
+        if not os.path.exists(STORAGE_DIR):
+            os.mkdir(STORAGE_DIR)
         with open(save_path,"ab") as f:
             while True:
                 # Read chunk header (client-encrypted data length)
@@ -216,7 +217,7 @@ def SendFile(file_id: str, ClientHandler) -> None:
     client: socket.socket = ClientHandler.client
     try:
         ClientHandler.write_to_log(f"Sending file to {ClientHandler}...")
-        with open(f"StorageFiles/{file_id}.bin", "rb") as f:
+        with open(f"./{STORAGE_DIR}/{file_id}.bin", "rb") as f:
             while header := f.read(4):
                 # Read encrypted chunk from storage
                 chunk_size = struct.unpack(FORMAT, header)[0]
@@ -267,7 +268,7 @@ def DeleteFile(file_id, ClientHandler)-> dict[str, Any]:
         )
         ClientHandler.db_conn.commit()
         # Remove physical file from storage
-        os.remove(f"./StorageFiles/{file_id}.bin")
+        os.remove(f"./{STORAGE_DIR}/{file_id}.bin")
         return {"status": True, "message": "File deleted successfully!"}
     except Exception as e:
         print(e)

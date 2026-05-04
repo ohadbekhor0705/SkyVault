@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from CClientBL import CClientBL
-from AuthPage import AuthFrame
-from HomePage import HomePage
+from UI_Components.AuthPage import AuthFrame
+from UI_Components.HomePage import HomePage
 
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("./themes/rime.json")

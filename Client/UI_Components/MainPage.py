@@ -157,6 +157,7 @@ class MainFrame(ctk.CTkFrame):
     def make_delete_callback(self,file_id: str, size: int, row: FileRow) -> Callable[[], None]:
         """Create a callback function for file deletion."""
         def callback():
+            # Prevent multiple simultaneous operations
             if self.client_bl.work_event.is_set():
                 return
             self.client_bl.work_event.set()
@@ -175,12 +176,14 @@ class MainFrame(ctk.CTkFrame):
     def make_save_callback(self,file_id: str, filename: str, file_hash: str):
         """Create a callback function for file download/save."""
         def callback():
+            # Prevent multiple simultaneous operations
             if self.client_bl.work_event.is_set():
                 return
+            self.client_bl.work_event.set()
             save_path = fd.askdirectory(title=f"Choose a path to save {filename}.")
             if not save_path:
                 return
-            self.client_bl.work_event.set()
+            # Start animation and call business logic
             threading.Thread(target=self.animate).start()
             self.client_bl.ReceiveFile(file_id,filename,save_path,file_hash, header_field=self.header)
         return lambda: threading.Thread(target=callback).start()
@@ -188,8 +191,10 @@ class MainFrame(ctk.CTkFrame):
     
     def on_click_create_folder(self):
         """Handle new folder creation."""
+        # Prevent multiple simultaneous operations
         if self.client_bl.work_event.is_set():
             return
+        # Start folder creation in background thread
         if self.client_bl._send_message({"cmd": "create_folder"}):
             response = self.client_bl._get_message()
             if response:

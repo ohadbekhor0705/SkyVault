@@ -259,6 +259,7 @@ class CClientBL():
                 # Update callbacks with row reference
                 file_row.on_delete = callbacks[0](response["file_id"], file_size, file_row)
                 file_row.grid(row=last_row, column=0, sticky="ew", padx=12, pady=6)
+                header_field.configure(text=f"{response['message']} ({round(self.current_storage / self.max_storage * 100, 2)}% Used)", text_color="green")
                 
         except (ConnectionResetError, ConnectionAbortedError, ConnectionError):
             header_field.configure(text="Something went wrong with the server! Couldn't fulfill the request.", text_color="red")
@@ -314,6 +315,8 @@ class CClientBL():
             self.current_storage -= size
             print(self.current_storage)
             bar.set(self.current_storage / self.max_storage)
+            if header:
+                header.configure(text=f"File deleted successfully. ({round(self.current_storage / self.max_storage * 100, 2)}% Used)", text_color="green")
         self.work_event.clear()
 
     def delete_folder(self, folder_row, folder_rows: dict, **kwargs) -> None:
@@ -344,6 +347,10 @@ class CClientBL():
                 value.on_click()
                 folder_row.destroy()
                 del folder_row
+                if header_field:
+                    header_field.configure(text=f"Folder deleted successfully. ({round(self.current_storage / self.max_storage * 100, 2)}% Used)", text_color="green")
+                if progress_bar:
+                    progress_bar.set(self.current_storage / self.max_storage)
             else:
                 if header_field:
                     header_field.configure(text="The server could'nt this this folder", text_color="red")

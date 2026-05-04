@@ -177,9 +177,7 @@ class ClientHandler(threading.Thread):
         self._fernet: fernet.Fernet = f
         self._event = event
         self.user_id: int = -1
-        
-        if not os.path.exists("./StorageFiles"):
-            os.mkdir("./StorageFiles")
+    
     # This code run for every client in a different thread
     def run(self) -> None:
         self.db_conn = sqlite3.connect(DB_PATH)

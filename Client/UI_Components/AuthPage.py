@@ -122,7 +122,7 @@ class AuthFrame(ctk.CTkFrame):
             self.frames["Main"] = main
             main.place(relx=0, rely=0, relwidth=1, relheight=1)
             main.tkraise()
-            self.message_label.configure(text=" ")
+            self.message_label.configure(text="")
             
         else:
             # Failure - Display the message returned from the BL
@@ -130,6 +130,7 @@ class AuthFrame(ctk.CTkFrame):
         self.submit_button.configure(state="active")
     def _go_home(self) -> None: 
         if self.on_back_home: 
-            self.username_entry.configure(text=" ")
-            self.password_entry.configure(text=" ")
+            self.username_entry.delete(0, 'end')
+            self.password_entry.delete(0, 'end')
+            
             self.on_back_home()

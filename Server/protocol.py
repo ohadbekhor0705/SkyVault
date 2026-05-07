@@ -89,6 +89,8 @@ def getUser(login: dict | int) -> dict[str, Any] | None:
     keys = ["user_id", "username", "password_hash", "max_storage", "curr_storage", "tries", "disabled"]
     with sqlite3.connect(DB_PATH) as conn:
         cur = conn.cursor()
+        # Use transaction to ensure atomic read and potential update of login attempts
+        cur.execute("BEGIN TRANSACTION;")
         res: dict[str, Any] | None = None
         if isinstance(login, int):
             # Fetch user by ID
@@ -126,6 +128,9 @@ def InsertUser(user: Dict[str,Any]) -> tuple[dict[str, Any], None] | tuple[dict[
         if username_exists(user["username"],cursor=cur):
             return {"status":False, "message": "This username is already taken"}, None
         # Hash password and insert new user
+        # Use bcrypt for secure password hashing with salt
+        # Use transaction to ensure atomic creation of user and default folder
+        cur.execute("START TRANSACTION;")
         cur.execute(
             "INSERT INTO users(username, password_hash) VALUES (?, ?)",(
                 user["username"],
@@ -191,6 +196,8 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
                 # Write: [4-byte length][encrypted data]
                 f.write(struct.pack("!I", len(file_encryption)) + file_encryption)        
         print(f"file received from: {ClientHandler}.")
+        # Use transaction to ensure atomic update of storage and file metadata
+        cur.execute("BEGIN TRANSACTION;")
         # Update database: increment user's storage and record new file metadata
         cur: sqlite3.Cursor =  ClientHandler.db_conn.cursor()
         cur.execute("UPDATE users SET curr_storage = curr_storage + ? WHERE user_id = ? ", (payload["filesize"],ClientHandler.user_id))
@@ -277,6 +284,8 @@ def DeleteFile(file_id, ClientHandler)-> dict[str, Any]:
 def rename(new_name: str, r_id: str | int, type_of_data: str, db:sqlite3.Connection):
     """Rename a file or folder."""
     cur = db.cursor()
+    # Use transaction to ensure atomic update of file or folder name
+    cur.execute("BEGIN TRANSACTION;")
     # Determine whether to update file or folder name
     if type_of_data == "file": 
         print("renaming file")
@@ -310,6 +319,8 @@ def createFolder(conn: sqlite3.Connection, uid: int):
     """
     try:
         cur = conn.cursor()
+        # Use transaction to ensure atomic creation of folder
+        cur.execute("BEGIN TRANSACTION;")
         # Generate unique folder ID using UUID v7
         new_folder_id = str(uuid7())
         # Create new user folder (not a system folder)
@@ -356,6 +367,8 @@ def DeleteFolder(folder_id: str,user_id: int, db_conn: sqlite3.Connection):
     """Delete a folder and all files within it, updating user storage."""
     try:
         cur = db_conn.cursor()
+        # Use transaction to ensure atomic deletion and storage update
+        cur.execute("BEGIN TRANSACTION;")
         # Subtract total size of all files in folder from user's storage
         cur.execute("UPDATE users SET curr_storage = curr_storage - COALESCE((SELECT SUM(size) from files WHERE folder_id = ?),0) WHERE user_id = ?",(folder_id, user_id))
         # Get all file IDs in folder for cleanup

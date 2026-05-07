@@ -1,7 +1,7 @@
 import customtkinter as ctk
 from typing import Callable, Optional
 from threading import Thread
-
+import webbrowser
 class HomePage(ctk.CTkFrame):
 
     def __init__(
@@ -84,7 +84,8 @@ class HomePage(ctk.CTkFrame):
             width=180,
             height=48,
             fg_color="transparent",
-            border_width=2
+            border_width=2,
+            command=lambda: webbrowser.open("https://github.com/ohadbekhor0705/SkyVault"),
         ).grid(row=0, column=1, padx=10)
 
         # FEATURES SECTION (3-column layout)

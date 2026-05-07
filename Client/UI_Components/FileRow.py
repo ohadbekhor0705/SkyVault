@@ -74,7 +74,6 @@ class FileRow(ctk.CTkFrame):
 
 
         self.menu.add_command(label="Save file", command=self._handle_save)
-        self.menu.add_separator()
         self.menu.add_command(label="Delete", command=self._handle_delete)
         self.menu.add_command(label="Rename", command=self._on_edit)
 

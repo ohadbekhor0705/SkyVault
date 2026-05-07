@@ -176,13 +176,15 @@ class MainFrame(ctk.CTkFrame):
     def make_save_callback(self,file_id: str, filename: str, file_hash: str):
         """Create a callback function for file download/save."""
         def callback():
+            print(f"Initiating download for file_id: {file_id}, filename: {filename}")
             # Prevent multiple simultaneous operations
             if self.client_bl.work_event.is_set():
-                return
-            self.client_bl.work_event.set()
+                return 
             save_path = fd.askdirectory(title=f"Choose a path to save {filename}.")
             if not save_path:
                 return
+            self.client_bl.work_event.set()
+           
             # Start animation and call business logic
             threading.Thread(target=self.animate).start()
             self.client_bl.ReceiveFile(file_id,filename,save_path,file_hash, header_field=self.header)

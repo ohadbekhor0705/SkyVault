@@ -202,6 +202,10 @@ class ClientHandler(threading.Thread):
             except ConnectionAbortedError:
                 self.write_to_log("ClientHandler -> run()] client connection Aborted!")
                 break
+        # Close the database connection in the same thread before disconnecting
+        if self.db_conn:
+            self.db_conn.close()
+            self.db_conn = None
         self.disconnect()
     def _get_message(self) -> str | None:
         """getting message from client
@@ -249,9 +253,10 @@ class ClientHandler(threading.Thread):
                     pass
                 self.client = None
                 self.write_to_log(f"[-] {self} Disconnected from server! ")
-        # Close the database connection
-        self.db_conn.close()
-        self.db_conn = None
+        # Close the database connection if it still exists
+        if self.db_conn:
+            self.db_conn.close()
+            self.db_conn = None
     def __repr__(self) -> str: return f"{self.address[0]}:{self.address[1]}" # String representation
 
 if __name__ == "__main__":

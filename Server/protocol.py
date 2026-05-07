@@ -130,7 +130,7 @@ def InsertUser(user: Dict[str,Any]) -> tuple[dict[str, Any], None] | tuple[dict[
         # Hash password and insert new user
         # Use bcrypt for secure password hashing with salt
         # Use transaction to ensure atomic creation of user and default folder
-        cur.execute("START TRANSACTION;")
+        cur.execute("BEGIN TRANSACTION;")
         cur.execute(
             "INSERT INTO users(username, password_hash) VALUES (?, ?)",(
                 user["username"],
@@ -196,13 +196,14 @@ def UploadFile(payload: dict[str, Any], ClientHandler) -> dict[str,Any] | None:
                 # Write: [4-byte length][encrypted data]
                 f.write(struct.pack("!I", len(file_encryption)) + file_encryption)        
         print(f"file received from: {ClientHandler}.")
-        # Use transaction to ensure atomic update of storage and file metadata
-        cur.execute("BEGIN TRANSACTION;")
+        
         # Update database: increment user's storage and record new file metadata
         cur: sqlite3.Cursor =  ClientHandler.db_conn.cursor()
-        cur.execute("UPDATE users SET curr_storage = curr_storage + ? WHERE user_id = ? ", (payload["filesize"],ClientHandler.user_id))
+        # Use transaction to ensure atomic update of storage and file metadata
+        cur.execute("BEGIN TRANSACTION;")
+        cur.execute("UPDATE users SET curr_storage = curr_storage + ? WHERE user_id = ? ;", (payload["filesize"],ClientHandler.user_id))
         # Insert file record with metadata (hash for integrity, timestamp, folder association)
-        cur.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?,?,?)",(file_id,payload["filename"],payload["filesize"], int(datetime.now().timestamp()), payload["hash"], ClientHandler.user_id, payload["folder_id"]))
+        cur.execute("INSERT INTO files VALUES (?, ?, ?, ?, ?,?,?);",(file_id,payload["filename"],payload["filesize"], int(datetime.now().timestamp()), payload["hash"], ClientHandler.user_id, payload["folder_id"]))
         ClientHandler.db_conn.commit()
 
     

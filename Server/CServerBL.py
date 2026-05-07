@@ -184,7 +184,7 @@ class ClientHandler(threading.Thread):
 
         # Server functionality here
         self.write_to_log(f"[+] client connection! {self} from device: {socket.gethostname()}")
-        self.write_to_log(f"[SERVER] {threading.active_count() - 3} Are currently connected!")
+        self.write_to_log(f"[SERVER] {threading.active_count() - 2} Are currently connected!")
         while self._event.is_set():
             try:
                 json_string: str | None = self._get_message()
@@ -253,10 +253,6 @@ class ClientHandler(threading.Thread):
                     pass
                 self.client = None
                 self.write_to_log(f"[-] {self} Disconnected from server! ")
-        # Close the database connection if it still exists
-        if self.db_conn:
-            self.db_conn.close()
-            self.db_conn = None
     def __repr__(self) -> str: return f"{self.address[0]}:{self.address[1]}" # String representation
 
 if __name__ == "__main__":

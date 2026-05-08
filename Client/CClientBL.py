@@ -1,6 +1,6 @@
 import io
 import socket
-from typing import Callable, Tuple, BinaryIO
+from typing import Callable, BinaryIO
 import json
 import struct
 import os
@@ -14,7 +14,6 @@ import base64
 import threading
 from UI_Components.FileRow import FileRow
 from time import sleep
-from customtkinter import END
 import hashlib
 
 # Constants

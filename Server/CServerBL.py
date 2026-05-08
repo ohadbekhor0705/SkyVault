@@ -1,12 +1,10 @@
-from pathlib import Path
 from typing import Any
 import socket  # Import socket for networking
 import threading  # Import threading for concurrent connections
 import json  # Import json for message serialization
 import os  # Import os for file system operations
-from typing import Callable, List, Tuple, Dict
+from typing import Tuple
 from protocol import *  # Import protocol definitions
-import bcrypt  # Import bcrypt for password hashing
 import struct
 from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives import serialization

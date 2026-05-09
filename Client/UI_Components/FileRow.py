@@ -36,7 +36,7 @@ class FileRow(ctk.CTkFrame):
         self.grid_columnconfigure(4, weight=0)      # Menu button
 
         # Widgets - set fg_color to transparent so they inherit the Frame's hover color
-        self.name_entry = ctk.CTkEntry(self, border_width=0, fg_color="transparent", font=ctk.CTkFont("Outfit"))
+        self.name_entry = ctk.CTkEntry(self, border_width=0, fg_color="transparent", font=ctk.CTkFont("Arial"))
         self.name_entry.insert(0, file_name)
         self.name_entry.configure(state="disabled")
         self.size_label = ctk.CTkLabel(self, text=file_size, anchor="w", fg_color="transparent")
@@ -59,7 +59,7 @@ class FileRow(ctk.CTkFrame):
         self.menu = tk.Menu(
             self, 
             tearoff=0, 
-            font=("Outfit", 15), 
+            font=("Arial", 15), 
             bg=BG_COLOR, 
             fg=FG_COLOR,
             activebackground=ACTIVE_BG, 

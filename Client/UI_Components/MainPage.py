@@ -64,7 +64,7 @@ class MainFrame(ctk.CTkFrame):
             hover_color=None,
             text_color="white",
             image=icons["logout"],
-            font=ctk.CTkFont("Outfit",15),
+            font=ctk.CTkFont("Arial",15),
             command=self.on_click_logout
         )
         self._disconnect_button.grid(row=0, column=0, sticky="e", pady=17,padx=9, columnspan=2)
@@ -73,7 +73,7 @@ class MainFrame(ctk.CTkFrame):
         self.header = ctk.CTkLabel(
             self,
             text="",
-            font=ctk.CTkFont("Outfit",20)
+            font=ctk.CTkFont("Arial",20)
         )
         self.header.grid(row=1, column=0, sticky="ew", pady=2,padx=9, columnspan=2)
         
@@ -93,7 +93,7 @@ class MainFrame(ctk.CTkFrame):
             text="",
             image=icons["new_folder"],
             compound="right",
-            font = ctk.CTkFont("Outfit",20),
+            font = ctk.CTkFont("Arial",20),
             command=self.on_click_create_folder
         )
         
@@ -297,7 +297,7 @@ class FolderRow(ctk.CTkFrame):
         # Folder name entry field
         self.folder_entry = ctk.CTkEntry(self,
             border_width=0,
-            font=ctk.CTkFont("Outfit",20),
+            font=ctk.CTkFont("Arial",20),
             fg_color="transparent"
         )
         self.folder_entry.insert(0, folder_name)

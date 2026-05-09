@@ -26,7 +26,6 @@ icons: dict[str, ctk.CTkImage] = {
 
 # Set global theme and font
 ctk.set_appearance_mode("light")
-ctk.FontManager.load_font("./fonts/Arial-VariableFont_wght.ttf")
 
 class MainFrame(ctk.CTkFrame):
     """Primary UI frame for authenticated session: folders/files lists, upload/delete/share ops."""

@@ -13,7 +13,6 @@ from cryptography.fernet import Fernet
 # Time and ID generation
 from datetime import datetime
 from uuid6 import uuid7
-from uuid import uuid4
 
 # File system and database operations
 import os

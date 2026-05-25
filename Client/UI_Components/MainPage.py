@@ -178,11 +178,11 @@ class MainFrame(ctk.CTkFrame):
             print(f"Initiating download for file_id: {file_id}, filename: {filename}")
             # Prevent multiple simultaneous operations
             if self.client_bl.work_event.is_set():
-                return 
+                return
+            self.client_bl.work_event.set()
             save_path = fd.askdirectory(title=f"Choose a path to save {filename}.")
             if not save_path:
                 return
-            self.client_bl.work_event.set()
            
             # Start animation and call business logic
             threading.Thread(target=self.animate).start()

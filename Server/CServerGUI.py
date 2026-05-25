@@ -84,13 +84,13 @@ class ServerApp(ctk.CTk):
         self.stop_btn.configure(state="disabled")
         
         # Call the BL stop method
-        self.server_bl.stop_server()
+        threading.Thread(target=self.server_bl.stop_server, daemon=True).start()
         
         self.start_btn.configure(state="normal")
 
     def on_closing(self):
         """Ensures sockets and threads are cleaned up when clicking the 'X'."""
-        self.server_bl.stop_server()
+        threading.Thread(target=self.server_bl.stop_server, daemon=True).start()
         self.destroy()
         sys.exit(0)
 

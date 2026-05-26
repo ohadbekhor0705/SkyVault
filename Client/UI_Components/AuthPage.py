@@ -112,6 +112,7 @@ class AuthFrame(ctk.CTkFrame):
         # Call BL
         response: dict[str, Any] = self.client_bl.connect(username, password, self.mode)
         if response["status"]:
+            self.password_entry.delete(0, 'end')
             # Success
             self.message_label.configure(text="Success! "+response["message"], text_color="green")
             main = MainFrame(

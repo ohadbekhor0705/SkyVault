@@ -179,11 +179,11 @@ class MainFrame(ctk.CTkFrame):
             # Prevent multiple simultaneous operations
             if self.client_bl.work_event.is_set():
                 return
-            self.client_bl.work_event.set()
+            
             save_path = fd.askdirectory(title=f"Choose a path to save {filename}.")
             if not save_path:
                 return
-           
+            self.client_bl.work_event.set()
             # Start animation and call business logic
             threading.Thread(target=self.animate).start()
             self.client_bl.ReceiveFile(file_id,filename,save_path,file_hash, header_field=self.header)
@@ -325,7 +325,7 @@ class FolderRow(ctk.CTkFrame):
 
     def on_click(self, event=None):
         """Handle folder selection - load files for this folder."""
-        # Deselect previous folder\
+        # Deselect previous folder
         print(self.client_bl.work_event.is_set())
         if self.client_bl.work_event.is_set():
             return
@@ -338,7 +338,7 @@ class FolderRow(ctk.CTkFrame):
         # Clear previous files and load new folder's files
         self.main_frame.after(50, self.main_frame.clear_file_rows)
         self.main_frame.selected_folder_id = self.folder_id
-        self.configure(border_width = 4, border_color=("gray50", "gray75"), fg_color = "transparent")
+        self.configure(border_width = 3, border_color=("gray50", "gray75"), fg_color = "transparent")
 
         # Fetch and display files for this folder
         file_rows: list[FileRow] = self.client_bl.get_files_data(

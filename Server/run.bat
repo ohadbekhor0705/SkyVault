@@ -1,4 +1,4 @@
 @echo off
 cd /d "%~dp0"
-python CServerBL.py
+python CServerGUI.py
 pause

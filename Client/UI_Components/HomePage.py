@@ -189,7 +189,7 @@ class HomePage(ctk.CTkFrame):
             )
     def _process_tcp_connection(self) -> None: 
         self.auth_button.configure(state="disabled")
-        Thread(target=lambda: self.client_bl._process_handshake(auth_button=self.auth_button)).start()
+        Thread(target=lambda: self.client_bl._process_handshake(auth_button=self.auth_button), daemon=True).start()
 
 if __name__ == "__main__":
     app = ctk.CTk()

@@ -109,6 +109,8 @@ def getUser(login: dict | int) -> dict[str, Any] | None:
                 else:
                     cur.execute("UPDATE users SET disabled = 1 WHERE username = :username",login)
                 return None
+            # Reset failed attempts on successful login
+            cur.execute("UPDATE users SET tries = 0 WHERE username = :username",login)
     return dict(zip(keys, values))
 
 def InsertUser(user: Dict[str,Any]) -> tuple[dict[str, Any], None] | tuple[dict[str, Any], int]:
